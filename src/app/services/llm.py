@@ -49,6 +49,15 @@ class AgentReasoner:
         if sobject_name:
             return IntentDecision(intent="describe", target_object=sobject_name, needs_schema=True)
 
+        if self.model is not None:
+            try:
+                return self._llm_classify_intent(user_input)
+            except Exception:
+                pass
+
+        return self._heuristic_classify_intent(user_input)
+
+    def _heuristic_classify_intent(self, user_input: str) -> IntentDecision:
         lowered = user_input.lower()
         if "account plan" in lowered and any(word in lowered for word in ("upload", "create", "update", "save")):
             return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c", needs_schema=False)
@@ -57,6 +66,33 @@ class AgentReasoner:
         if "describe" in lowered or "fields" in lowered or "schema" in lowered:
             return IntentDecision(intent="describe", target_object=_extract_guess_from_text(user_input), needs_schema=True)
         return IntentDecision(intent="query", target_object=_extract_guess_from_text(user_input), needs_schema=True)
+
+    def _llm_classify_intent(self, user_input: str) -> IntentDecision:
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                "You are an intent classifier for a Salesforce agent. "
+                "Given a user request, respond with JSON containing:\n"
+                '- "intent": one of "describe", "query", or "upload_account_plan"\n'
+                '- "target_object": the Salesforce object name (e.g. "Account", "Contact", "Opportunity", "Account_Plan__c") or null\n'
+                "Rules:\n"
+                '- If the user wants to see object fields or schema, intent is "describe"\n'
+                '- If the user wants to read/find/show data, intent is "query"\n'
+                '- If the user wants to create/prepare/draft/upload an account plan, intent is "upload_account_plan"\n'
+                "Respond with valid JSON only, no extra text.",
+            ),
+            ("human", "{user_input}"),
+        ])
+        chain = prompt | self.model
+        response = chain.invoke({"user_input": user_input})
+        content = getattr(response, "content", "")
+        parsed = json.loads(content)
+        intent = parsed.get("intent", "query")
+        if intent not in ("describe", "query", "upload_account_plan"):
+            intent = "query"
+        target_object = parsed.get("target_object")
+        needs_schema = intent in ("describe", "query")
+        return IntentDecision(intent=intent, target_object=target_object, needs_schema=needs_schema)
 
     def compose_response(self, state: dict[str, Any]) -> str:
         if self.model is None:

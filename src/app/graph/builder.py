@@ -3,7 +3,7 @@ from __future__ import annotations
 from langgraph.graph import END, START, StateGraph
 
 from app.graph.nodes.approval import approval_node
-from app.graph.nodes.business_context import business_context_node
+from app.graph.nodes.business_context import make_business_context_node
 from app.graph.nodes.intent import make_intent_node
 from app.graph.nodes.normalize import normalize_node
 from app.graph.nodes.planning import planning_node
@@ -24,7 +24,7 @@ def build_agent_graph(*, adapter: SalesforceToolAdapter, reasoner: AgentReasoner
     graph = StateGraph(AgentState)
 
     graph.add_node("intent", make_intent_node(reasoner))
-    graph.add_node("business_context", business_context_node)
+    graph.add_node("business_context", make_business_context_node(reasoner))
     graph.add_node("planning", planning_node)
     graph.add_node("resolve_account", make_resolve_account_node(adapter))
     graph.add_node("schema", make_schema_node(adapter))

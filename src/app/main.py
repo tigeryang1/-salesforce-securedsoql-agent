@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 
 from app.graph.builder import build_agent_graph
 from app.services.contracts import FieldDescription, ObjectDescription, QueryResult, UploadResult
-from app.services.llm import AgentReasoner
+from app.services.llm import AgentReasoner, build_chat_model
 from app.services.mcp_transport import build_streamable_http_adapter
 from app.services.salesforce_tools import InMemorySalesforceToolAdapter
 
@@ -121,7 +122,12 @@ async def _run() -> None:
             mcp_url=args.mcp_url,
             session_token=args.session_token or "change-me",
         )
-        graph = build_agent_graph(adapter=adapter, reasoner=AgentReasoner(model=None))
+        model_name = os.environ.get("AGENT_MODEL", "")
+        try:
+            model = build_chat_model(model_name) if model_name else None
+        except Exception:
+            model = None
+        graph = build_agent_graph(adapter=adapter, reasoner=AgentReasoner(model=model))
     result = await graph.ainvoke(
         {
             "user_input": args.user_input,

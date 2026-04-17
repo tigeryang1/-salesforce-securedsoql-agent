@@ -9,7 +9,7 @@ from app.graph.builder import build_agent_graph
 from app.models.requests import ApprovalRequest, RunRequest
 from app.models.responses import AgentResponse
 from app.services.contracts import FieldDescription, ObjectDescription, QueryResult, UploadResult
-from app.services.llm import AgentReasoner
+from app.services.llm import AgentReasoner, build_chat_model
 from app.services.mcp_transport import build_streamable_http_adapter
 from app.services.salesforce_tools import InMemorySalesforceToolAdapter
 
@@ -42,6 +42,34 @@ def build_demo_adapter() -> InMemorySalesforceToolAdapter:
                 records=[{"Id": "001000000000000BBB", "Name": "Acme", "Industry": "Retail"}],
                 record_count=1,
                 returned_fields=["Id", "Name", "Industry"],
+            )
+        if "from contact" in normalized:
+            return QueryResult(
+                success=True,
+                records=[{
+                    "Id": "003000000000000AAA",
+                    "Name": "Jane Smith",
+                    "Email": "jane.smith@example.com",
+                    "Phone": "555-0100",
+                    "Title": "VP Marketing",
+                    "AccountId": "001000000000000AAA",
+                }],
+                record_count=1,
+                returned_fields=["Id", "Name", "Email", "Phone", "Title", "AccountId"],
+            )
+        if "from opportunity" in normalized:
+            return QueryResult(
+                success=True,
+                records=[{
+                    "Id": "006000000000000AAA",
+                    "Name": "Acme Q1 Deal",
+                    "StageName": "Proposal",
+                    "Amount": "250000",
+                    "CloseDate": "2026-03-31",
+                    "AccountId": "001000000000000AAA",
+                }],
+                record_count=1,
+                returned_fields=["Id", "Name", "StageName", "Amount", "CloseDate", "AccountId"],
             )
         if "from account_plan__c" in normalized:
             return QueryResult(
@@ -83,6 +111,32 @@ def build_demo_adapter() -> InMemorySalesforceToolAdapter:
                     FieldDescription(name="CreatedDate", label="Created Date", type="datetime"),
                 ],
             ),
+            "Contact": ObjectDescription(
+                name="Contact",
+                label="Contact",
+                key_prefix="003",
+                fields=[
+                    FieldDescription(name="Id", label="Contact ID", type="id"),
+                    FieldDescription(name="Name", label="Full Name", type="string"),
+                    FieldDescription(name="Email", label="Email", type="email"),
+                    FieldDescription(name="Phone", label="Phone", type="phone"),
+                    FieldDescription(name="Title", label="Title", type="string"),
+                    FieldDescription(name="AccountId", label="Account ID", type="reference", reference_to=["Account"]),
+                ],
+            ),
+            "Opportunity": ObjectDescription(
+                name="Opportunity",
+                label="Opportunity",
+                key_prefix="006",
+                fields=[
+                    FieldDescription(name="Id", label="Opportunity ID", type="id"),
+                    FieldDescription(name="Name", label="Opportunity Name", type="string"),
+                    FieldDescription(name="StageName", label="Stage", type="picklist"),
+                    FieldDescription(name="Amount", label="Amount", type="currency"),
+                    FieldDescription(name="CloseDate", label="Close Date", type="date"),
+                    FieldDescription(name="AccountId", label="Account ID", type="reference", reference_to=["Account"]),
+                ],
+            ),
             "Account_Plan__c": ObjectDescription(
                 name="Account_Plan__c",
                 label="Account Plan",
@@ -115,8 +169,18 @@ async def build_graph(*, use_demo_adapter: bool, mcp_url: str | None, session_to
         if not session_token:
             session_token = settings.default_session_token
         adapter = await build_streamable_http_adapter(mcp_url=mcp_url, session_token=session_token)
-    reasoner = AgentReasoner(model=None)
+    reasoner = _build_reasoner()
     return build_agent_graph(adapter=adapter, reasoner=reasoner)
+
+
+def _build_reasoner() -> AgentReasoner:
+    model_name = settings.agent_model
+    if not model_name:
+        return AgentReasoner(model=None)
+    try:
+        return AgentReasoner(model=build_chat_model(model_name))
+    except Exception:
+        return AgentReasoner(model=None)
 
 
 def merge_account_plan_draft(existing: dict[str, Any] | None, incoming: dict[str, Any] | None) -> dict[str, Any] | None:

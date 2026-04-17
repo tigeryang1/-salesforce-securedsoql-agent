@@ -52,6 +52,15 @@ FIELD_LABELS = {
     "Q2_Upcoming_Meetings__c": "Q2 meetings",
     "Q3_Upcoming_Meetings__c": "Q3 meetings",
     "Q4_Upcoming_Meetings__c": "Q4 meetings",
+    "Email": "Email",
+    "Phone": "Phone",
+    "Title": "Title",
+    "AccountId": "Account",
+    "StageName": "Stage",
+    "Amount": "Amount",
+    "CloseDate": "Close date",
+    "Probability": "Probability",
+    "ForecastCategory": "Forecast",
 }
 
 
@@ -75,6 +84,28 @@ def summarize_query_result(state: dict[str, Any]) -> str | None:
             ("Measurement vendors", ["Measurement_Vendors__c", "Q2_Measurement_Vendors__c", "Q3_Measurement_Vendors__c", "Q4_Measurement_Vendors__c"]),
             ("Review cadence", ["Planning_Cadence__c", "Touchbase_Frequency__c", "Q1_Upcoming_Meetings__c", "Q2_Upcoming_Meetings__c", "Q3_Upcoming_Meetings__c", "Q4_Upcoming_Meetings__c"]),
             ("Recent news", ["Recent_News__c"]),
+        ]
+        parts = _render_groups(first, groups)
+        if parts:
+            return " | ".join(parts)
+    if target_object == "Contact":
+        groups = [
+            ("Name", ["Name"]),
+            ("Title", ["Title"]),
+            ("Email", ["Email"]),
+            ("Phone", ["Phone"]),
+            ("Account", ["AccountId"]),
+        ]
+        parts = _render_groups(first, groups)
+        if parts:
+            return " | ".join(parts)
+    if target_object == "Opportunity":
+        groups = [
+            ("Opportunity", ["Name"]),
+            ("Stage", ["StageName"]),
+            ("Amount", ["Amount"]),
+            ("Close date", ["CloseDate"]),
+            ("Account", ["AccountId"]),
         ]
         parts = _render_groups(first, groups)
         if parts:

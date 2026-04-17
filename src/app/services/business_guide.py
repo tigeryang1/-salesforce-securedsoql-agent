@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 
 BUSINESS_FIELD_MAP: dict[str, tuple[str, ...]] = {
@@ -41,6 +43,14 @@ ACCOUNT_PLAN_SIGNALS = (
     "spend", "leadership", "events", "key moments", "objectives", "tactics",
     "creative", "agency", "cadence", "meetings", "competitive", "measurement",
 )
+CONTACT_SIGNALS = (
+    "contact", "contacts", "people", "person", "email", "phone",
+    "decision maker", "stakeholder",
+)
+OPPORTUNITY_SIGNALS = (
+    "opportunity", "opportunities", "deal", "deals", "pipeline",
+    "revenue", "close date", "stage", "forecast",
+)
 
 
 @dataclass(slots=True)
@@ -53,20 +63,26 @@ class BusinessInterpretation:
     guidance: list[str] = field(default_factory=list)
 
 
-def interpret_business_request(user_input: str) -> BusinessInterpretation:
+def interpret_business_request(user_input: str, *, model: Any = None) -> BusinessInterpretation:
+    if model is not None:
+        try:
+            return _llm_interpret(user_input, model)
+        except Exception:
+            pass
+
+    return _heuristic_interpret(user_input)
+
+
+def _heuristic_interpret(user_input: str) -> BusinessInterpretation:
     lowered = user_input.lower()
     terms = [term for term in BUSINESS_FIELD_MAP if term in lowered]
     candidate_fields: list[str] = []
     for term in terms:
-        for field in BUSINESS_FIELD_MAP[term]:
-            if field not in candidate_fields:
-                candidate_fields.append(field)
+        for fld in BUSINESS_FIELD_MAP[term]:
+            if fld not in candidate_fields:
+                candidate_fields.append(fld)
 
-    target_object = None
-    if any(signal in lowered for signal in ACCOUNT_PLAN_SIGNALS):
-        target_object = "Account_Plan__c"
-    elif any(signal in lowered for signal in ACCOUNT_SIGNALS):
-        target_object = "Account"
+    target_object = _detect_target_object(lowered)
 
     guidance: list[str] = []
     if terms:
@@ -77,6 +93,69 @@ def interpret_business_request(user_input: str) -> BusinessInterpretation:
         )
 
     account_name = extract_account_name(user_input)
+    if account_name:
+        guidance.append(f"I inferred `{account_name}` as the customer account to resolve.")
+
+    business_goal = "account_plan_summary" if target_object == "Account_Plan__c" else "account_lookup"
+    return BusinessInterpretation(
+        business_goal=business_goal,
+        target_object=target_object,
+        business_terms=terms,
+        candidate_fields=candidate_fields,
+        account_name=account_name,
+        guidance=guidance,
+    )
+
+
+def _detect_target_object(lowered: str) -> str | None:
+    if any(signal in lowered for signal in ACCOUNT_PLAN_SIGNALS):
+        return "Account_Plan__c"
+    if any(signal in lowered for signal in CONTACT_SIGNALS):
+        return "Contact"
+    if any(signal in lowered for signal in OPPORTUNITY_SIGNALS):
+        return "Opportunity"
+    if any(signal in lowered for signal in ACCOUNT_SIGNALS):
+        return "Account"
+    return None
+
+
+def _llm_interpret(user_input: str, model: Any) -> BusinessInterpretation:
+    from langchain_core.prompts import ChatPromptTemplate
+
+    all_terms = ", ".join(sorted(BUSINESS_FIELD_MAP.keys()))
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "You extract structured context from a Salesforce business request. "
+            "Respond with JSON containing:\n"
+            '- "account_name": the company/customer name mentioned, or null\n'
+            '- "target_object": one of "Account", "Contact", "Opportunity", "Account_Plan__c", or null\n'
+            f'- "business_terms": array of matching terms from this list: [{all_terms}]\n'
+            "Respond with valid JSON only, no extra text.",
+        ),
+        ("human", "{user_input}"),
+    ])
+    chain = prompt | model
+    response = chain.invoke({"user_input": user_input})
+    content = getattr(response, "content", "")
+    parsed = json.loads(content)
+
+    account_name = parsed.get("account_name")
+    target_object = parsed.get("target_object")
+    terms = [t for t in parsed.get("business_terms", []) if t in BUSINESS_FIELD_MAP]
+    candidate_fields: list[str] = []
+    for term in terms:
+        for fld in BUSINESS_FIELD_MAP[term]:
+            if fld not in candidate_fields:
+                candidate_fields.append(fld)
+
+    guidance: list[str] = []
+    if terms:
+        guidance.append(
+            "I translated the business request into Salesforce fields tied to "
+            + ", ".join(terms)
+            + "."
+        )
     if account_name:
         guidance.append(f"I inferred `{account_name}` as the customer account to resolve.")
 
@@ -176,4 +255,8 @@ def _default_fields_for_object(target_object: str | None) -> list[str]:
             "Leadership__c",
             "Competitive_Landscape__c",
         ]
+    if target_object == "Contact":
+        return ["Id", "Name", "Email", "Phone", "Title", "AccountId"]
+    if target_object == "Opportunity":
+        return ["Id", "Name", "StageName", "Amount", "CloseDate", "AccountId"]
     return ["Id", "Name"]
