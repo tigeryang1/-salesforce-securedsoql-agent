@@ -23,6 +23,8 @@ def soql_builder_node(state: AgentState) -> AgentState:
     where_clause = ""
     if target_object == "Account_Plan__c" and state.get("resolved_account_id"):
         where_clause = f" WHERE AccountPlan__c = '{state['resolved_account_id']}'"
+    elif target_object in ("Contact", "Opportunity") and state.get("resolved_account_id"):
+        where_clause = f" WHERE AccountId = '{state['resolved_account_id']}'"
     elif target_object == "Account" and state.get("account_name"):
         account_name = state["account_name"].replace("'", "''")
         where_clause = f" WHERE Name LIKE '%{account_name}%'"

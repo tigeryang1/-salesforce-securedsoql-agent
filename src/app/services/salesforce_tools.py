@@ -49,7 +49,11 @@ class CallableSalesforceToolAdapter(SalesforceToolAdapter):
         requested_fields = extract_selected_fields(soql_query)
         records = raw.get("records", [])
         returned_fields = sorted({key for row in records for key in row.keys()})
-        filtered_fields = [field for field in requested_fields if field not in returned_fields]
+        filtered_fields = (
+            [field for field in requested_fields if field not in returned_fields]
+            if records
+            else []
+        )
         security_notes = []
         if filtered_fields:
             security_notes.append(
