@@ -22,7 +22,9 @@ A good way to use it is:
 - understand a customer account in business language
 - review client priorities, challenges, and growth opportunities
 - review spend plans and account-plan context
-- prepare an account plan step by step
+- look up contacts, stakeholders, and decision makers
+- review deals, pipeline, and opportunity stages
+- prepare an account plan step by step across 12 sections
 - validate whether an account plan is ready before upload
 - upload an account plan after review and approval
 
@@ -30,11 +32,11 @@ A good way to use it is:
 
 You do not need to know:
 
-- Salesforce object names like `Account` or `Account_Plan__c`
+- Salesforce object names like `Account`, `Contact`, `Opportunity`, or `Account_Plan__c`
 - Salesforce field API names
 - SOQL query syntax
 
-You can ask in plain business language instead.
+You can ask in plain business language instead. The agent understands terms like "contacts", "deals", "pipeline", "stakeholders", "key moments", "competitive landscape", and many more.
 
 ## Best ways to ask
 
@@ -43,6 +45,8 @@ Use prompts like these:
 - "Show me Nike client priorities and growth opportunities"
 - "What do we know about Acme's strategy and spend?"
 - "Help me prepare a 2026 account plan for Nike"
+- "Find contacts at Nike"
+- "Show me open deals for Acme"
 - "Is this account plan ready to upload?"
 - "What is still missing from this plan?"
 
@@ -55,6 +59,8 @@ Examples:
 - "Main goal is upper funnel growth"
 - "Q1 is 30k, Q2 is 25k, Q3 is 20k, Q4 is 25k"
 - "Primary contact is Jane Doe"
+- "The agency is MediaCom"
+- "Q1 key moment is the spring campaign launch"
 
 ## Main use cases
 
@@ -99,7 +105,37 @@ What the agent will do:
 - show what is currently available
 - tell you if some requested data was not returned because of Salesforce security policy
 
-### 4. Prepare an account plan
+### 4. Find contacts and stakeholders
+
+Examples:
+
+- "Find contacts at Nike"
+- "Who is the decision maker at Acme?"
+- "Show me stakeholders for this account"
+- "Find the email for Jane Smith"
+
+What the agent will do:
+
+- look up Contact records associated with the account
+- show name, title, email, and phone when available
+- tell you if some fields were hidden by security policy
+
+### 5. Review deals and pipeline
+
+Examples:
+
+- "Show me open deals for Acme"
+- "What opportunities are in the pipeline?"
+- "What is the forecast for Nike?"
+- "Show me the close dates for our deals"
+
+What the agent will do:
+
+- look up Opportunity records
+- show deal name, stage, amount, and close date when available
+- summarize the results in business terms
+
+### 6. Prepare an account plan
 
 Examples:
 
@@ -110,17 +146,25 @@ What the agent will do:
 
 - identify the customer account
 - infer the plan year when possible
-- build the draft in sections:
-  - foundation
-  - strategy
-  - spend plan
-  - stakeholders
+- build the draft across 12 sections:
+  - foundation (account and plan year)
+  - strategy (goals, challenges, growth opportunities)
+  - client objectives (CEO priorities, recent news)
+  - media and marketing (account health, marketing goals, creative strategy, agency)
+  - key moments (quarterly events)
+  - value proposition (growth opportunities, keys to unlocking growth)
+  - tactics (quarterly objectives)
+  - spend plan (annual and quarterly spend estimates)
+  - stakeholders (leadership, primary contact, budget decision maker, relationship map)
+  - competitive landscape (competitors and notes)
+  - measurement vendors (quarterly measurement vendors)
+  - review cadence (planning cadence, meeting frequency, upcoming meetings)
 - tell you what is still missing
 - recommend the next best question to answer
 
 This is the main multi-turn use case for business users.
 
-### 5. Review readiness before upload
+### 7. Review readiness before upload
 
 Examples:
 
@@ -134,7 +178,7 @@ What the agent will do:
 - show an upload preview
 - keep the plan in draft mode if important information is still missing
 
-### 6. Upload the account plan
+### 8. Upload the account plan
 
 Examples:
 
@@ -156,20 +200,32 @@ Typical flow:
 1. Start the draft
    Example: "Help me prepare a 2026 account plan for Nike"
 
-2. Answer the next question
+2. Add strategy and goals
    Example: "The main goal is upper funnel growth and better measurement confidence"
 
-3. Add spend details
+3. Add client objectives
+   Example: "CEO priorities are brand awareness and market expansion"
+
+4. Add media and marketing context
+   Example: "Agency is MediaCom, creative strategy is video-first"
+
+5. Add key moments
+   Example: "Q1 event is the spring launch campaign, Q3 is back to school"
+
+6. Add spend details
    Example: "Annual budget is 120k and split evenly across quarters"
 
-4. Add stakeholder context
+7. Add stakeholder context
    Example: "Primary contact is Jane Doe and the budget owner is Mark"
 
-5. Ask if it is ready
+8. Add competitive context
+   Example: "Main competitor is Meta, secondary is TikTok"
+
+9. Ask if it is ready
    Example: "Is this ready to upload?"
 
-6. Approve upload
-   Example: "Approve and upload it"
+10. Approve upload
+    Example: "Approve and upload it"
 
 ## Recommended multi-turn pattern
 
@@ -199,29 +255,64 @@ Goal of this turn:
 
 - fill the strategy section
 
-### Turn 3: provide client priorities or challenges
+### Turn 3: provide client objectives
 
 Examples:
 
-- "The client is focused on measurement confidence and creative performance"
-- "Main challenge is proving incrementality and improving media efficiency"
+- "CEO priorities are brand awareness and market expansion"
+- "Recent news: the client just launched a new product line"
 
 Goal of this turn:
 
-- fill the business challenge and priority section
+- fill the client objectives section
 
-### Turn 4: provide growth opportunities
+### Turn 4: provide media and marketing context
+
+Examples:
+
+- "Agency is MediaCom"
+- "Creative strategy is video-first with seasonal themes"
+- "Marketing goals are brand lift and consideration"
+- "Account health is strong"
+
+Goal of this turn:
+
+- fill the media and marketing section
+
+### Turn 5: provide key moments
+
+Examples:
+
+- "Q1 event is the spring launch"
+- "Q2 is summer campaign, Q3 is back to school, Q4 is holiday"
+
+Goal of this turn:
+
+- fill the quarterly events and key moments section
+
+### Turn 6: provide growth opportunities and value proposition
 
 Examples:
 
 - "Biggest opportunity is expanding shopping campaigns"
-- "Growth opportunity is better seasonal activation and broader audience coverage"
+- "Keys to unlocking growth are better creative and broader audiences"
 
 Goal of this turn:
 
-- fill the growth opportunity section
+- fill the value proposition section
 
-### Turn 5: provide spend plan
+### Turn 7: provide tactics and quarterly objectives
+
+Examples:
+
+- "Q1 objective is launch awareness campaign"
+- "Q2 objective is drive consideration, Q3 is expand shopping, Q4 is holiday push"
+
+Goal of this turn:
+
+- fill the tactics section
+
+### Turn 8: provide spend plan
 
 Examples:
 
@@ -233,19 +324,43 @@ Goal of this turn:
 - fill the spend plan
 - make sure quarterly values match the annual number
 
-### Turn 6: provide stakeholders
+### Turn 9: provide stakeholders
 
 Examples:
 
 - "Primary contact is Jane Doe"
 - "Budget owner is Mark"
 - "Leadership sponsor is Sarah"
+- "Highest level of contact is VP Marketing"
 
 Goal of this turn:
 
 - fill the stakeholder section
 
-### Turn 7: check readiness
+### Turn 10: provide competitive context
+
+Examples:
+
+- "Main competitor is Meta, secondary is TikTok"
+- "Competitive landscape: client currently splits budget across three platforms"
+
+Goal of this turn:
+
+- fill the competitive section
+
+### Turn 11: provide measurement and review cadence
+
+Examples:
+
+- "Measurement vendor is Nielsen"
+- "Planning cadence is quarterly, touchbase is bi-weekly"
+- "Q1 meeting is January 15th"
+
+Goal of this turn:
+
+- fill the measurement vendors and review cadence sections
+
+### Turn 12: check readiness
 
 Examples:
 
@@ -259,7 +374,7 @@ Goal of this turn:
 - review the upload preview
 - check whether anything important is still incomplete
 
-### Turn 8: approve upload
+### Turn 13: approve upload
 
 Examples:
 
@@ -290,6 +405,15 @@ Examples:
 - Agent: "Who is the budget decision maker?"
   You: "Mark Chen"
 
+- Agent: "Who is the agency partner?"
+  You: "MediaCom"
+
+- Agent: "What are the key events for Q1?"
+  You: "Spring launch campaign"
+
+- Agent: "Who are the main competitors?"
+  You: "Meta and TikTok"
+
 The agent is designed to accumulate the draft across turns when the same session is used.
 
 ## What to expect from the agent
@@ -310,10 +434,17 @@ Examples of missing items:
 
 - plan year
 - goals or strategy
-- growth opportunities
+- client objectives or CEO priorities
+- media and marketing context
+- key moments or quarterly events
+- growth opportunities or value proposition
+- quarterly tactics or objectives
 - annual spend
 - quarterly spend breakdown
 - stakeholder context
+- competitive landscape
+- measurement vendors
+- review cadence or meeting schedule
 
 This does not mean the draft failed.
 
@@ -333,7 +464,7 @@ That means:
 - some rows may not be visible
 - some filters may be blocked if they use restricted fields
 
-The agent will tell you when this happens. It will not invent missing data.
+The agent will tell you when this happens with a clear explanation of what went wrong. For example, it may say the object is not available, you lack access, or a specific filter was blocked. It will not invent missing data.
 
 ## Tips for best results
 
@@ -349,10 +480,18 @@ The agent will tell you when this happens. It will not invent missing data.
 
 - "Help me prepare a 2026 account plan for Nike"
 - "The strategy is to grow consideration and improve measurement confidence"
-- "The client's main challenge is measurement confidence"
+- "CEO priorities are brand awareness and market expansion"
+- "Agency is MediaCom, creative strategy is video-first"
+- "Q1 event is the spring launch, Q3 is back to school"
 - "Biggest opportunity is shopping expansion"
+- "Q1 objective is awareness, Q2 is consideration, Q3 is shopping, Q4 is holiday"
 - "Annual spend is 100k, with 25k per quarter"
 - "Leadership context: Jane is the main contact and Mark owns the budget"
+- "Main competitor is Meta, secondary is TikTok"
+- "Measurement vendor is Nielsen"
+- "Planning cadence is quarterly, touchbase is bi-weekly"
+- "Find contacts at Nike"
+- "Show me open deals for Acme"
 - "Show me what is still missing"
 - "Is this ready to upload?"
 - "Approve and upload the plan"
@@ -364,11 +503,17 @@ Before upload, try to have:
 - the right customer account
 - the correct plan year
 - goals or strategy
-- business challenges or priorities
-- growth opportunities
+- client objectives or CEO priorities
+- media and marketing context (agency, creative strategy)
+- key moments or quarterly events
+- growth opportunities and value proposition
+- quarterly tactics or objectives
 - annual spend target
 - quarterly spend breakdown
 - stakeholder or leadership context
+- competitive landscape
+- measurement vendors
+- review cadence and meeting schedule
 
 ## If you are using the API through a UI or app
 
