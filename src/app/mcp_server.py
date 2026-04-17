@@ -53,6 +53,31 @@ async def run_langgraph_agent(
 
 
 @mcp.tool()
+async def approve_account_plan(
+    session_id: str,
+    user_input: str = "Approve and upload the account plan",
+    account_plan_data: dict[str, Any] | None = None,
+    use_demo_adapter: bool = True,
+    mcp_url: str | None = None,
+    session_token: str | None = None,
+) -> dict[str, Any]:
+    state = await service.approve(
+        user_input=user_input,
+        session_id=session_id,
+        account_plan_data=account_plan_data,
+        use_demo_adapter=use_demo_adapter,
+        mcp_url=mcp_url,
+        session_token=session_token,
+    )
+    return {
+        "status": state.get("status", "completed"),
+        "intent": state.get("intent", "unknown"),
+        "message": state.get("final_response", ""),
+        "data": state,
+    }
+
+
+@mcp.tool()
 def get_agent_state(session_id: str) -> dict[str, Any]:
     return service.get_state(session_id)
 

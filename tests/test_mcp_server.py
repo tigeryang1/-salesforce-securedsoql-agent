@@ -1,6 +1,6 @@
 import asyncio
 
-from app.mcp_server import get_agent_state, reset_agent, run_langgraph_agent, service
+from app.mcp_server import approve_account_plan, get_agent_state, reset_agent, run_langgraph_agent, service
 
 
 def test_run_langgraph_agent_tool_supports_multi_turn_session() -> None:
@@ -36,4 +36,27 @@ def test_get_and_reset_agent_state_tools() -> None:
     reset = reset_agent("mcp-2")
     assert reset["reset"] is True
     cleared = get_agent_state("mcp-2")
+    assert cleared["account_plan_data"] is None
+
+
+def test_approve_account_plan_tool_uploads_after_drafting() -> None:
+    asyncio.run(
+        run_langgraph_agent(
+            prompt="Help me prepare a 2026 account plan for Nike",
+            session_id="mcp-3",
+        )
+    )
+    result = asyncio.run(
+        approve_account_plan(
+            session_id="mcp-3",
+            account_plan_data={
+                "AccountPlan__c": "001000000000000AAA",
+                "Plan_Year__c": "2026",
+            },
+        )
+    )
+    assert result["status"] == "uploaded"
+    assert result["data"]["upload_record_id"] == "a01000000000000AAA"
+
+    cleared = get_agent_state("mcp-3")
     assert cleared["account_plan_data"] is None
