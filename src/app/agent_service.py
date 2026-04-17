@@ -16,6 +16,7 @@ class AgentSessionService:
         self.settings = settings or get_settings()
         self._draft_store: dict[str, dict[str, Any]] = {}
         self._last_state_store: dict[str, dict[str, Any]] = {}
+        self._session_config_store: dict[str, dict[str, Any]] = {}
 
     async def run(
         self,
@@ -32,10 +33,16 @@ class AgentSessionService:
     ) -> dict[str, Any]:
         stored_draft = self._draft_store.get(session_id)
         merged_payload = merge_account_plan_draft(stored_draft, account_plan_data)
-        graph = await self._build_graph(
+        session_config = self._effective_session_config(
+            session_id=session_id,
             use_demo_adapter=use_demo_adapter,
             mcp_url=mcp_url,
             session_token=session_token,
+        )
+        graph = await self._build_graph(
+            use_demo_adapter=session_config["use_demo_adapter"],
+            mcp_url=session_config["mcp_url"],
+            session_token=session_config["session_token"],
         )
         state = await graph.ainvoke(
             {
@@ -49,9 +56,11 @@ class AgentSessionService:
             }
         )
         self._last_state_store[session_id] = dict(state)
+        self._session_config_store[session_id] = dict(session_config)
         if should_persist_draft(state.get("intent", "unknown"), state):
             if state.get("status") == "uploaded":
                 self._draft_store.pop(session_id, None)
+                self._session_config_store.pop(session_id, None)
             else:
                 self._draft_store[session_id] = deepcopy(state.get("account_plan_data") or {})
         return dict(state)
@@ -68,33 +77,67 @@ class AgentSessionService:
     ) -> dict[str, Any]:
         stored_draft = self._draft_store.get(session_id)
         merged_payload = merge_account_plan_draft(stored_draft, account_plan_data)
+        session_config = self._effective_session_config(
+            session_id=session_id,
+            use_demo_adapter=use_demo_adapter,
+            mcp_url=mcp_url,
+            session_token=session_token,
+        )
         state = await self.run(
             user_input=user_input,
             session_id=session_id,
             account_plan_data=merged_payload,
             approved=True,
-            use_demo_adapter=use_demo_adapter,
-            mcp_url=mcp_url,
-            session_token=session_token,
+            use_demo_adapter=session_config["use_demo_adapter"],
+            mcp_url=session_config["mcp_url"],
+            session_token=session_config["session_token"],
         )
-        self._draft_store.pop(session_id, None)
+        if state.get("status") == "uploaded":
+            self._draft_store.pop(session_id, None)
+            self._session_config_store.pop(session_id, None)
         return state
 
     def get_state(self, session_id: str) -> dict[str, Any]:
+        config = deepcopy(self._session_config_store.get(session_id))
         return {
             "session_id": session_id,
             "account_plan_data": deepcopy(self._draft_store.get(session_id)),
             "last_state": deepcopy(self._last_state_store.get(session_id)),
+            "session_config": _redact_session_config(config) if config else None,
         }
 
     def reset(self, session_id: str) -> dict[str, Any]:
         removed_draft = self._draft_store.pop(session_id, None)
         removed_state = self._last_state_store.pop(session_id, None)
+        removed_config = self._session_config_store.pop(session_id, None)
         return {
             "session_id": session_id,
             "reset": True,
             "had_draft": removed_draft is not None,
             "had_state": removed_state is not None,
+            "had_config": removed_config is not None,
+        }
+
+    def _effective_session_config(
+        self,
+        *,
+        session_id: str,
+        use_demo_adapter: bool,
+        mcp_url: str | None,
+        session_token: str | None,
+    ) -> dict[str, Any]:
+        stored = self._session_config_store.get(session_id, {})
+        explicit_live = not use_demo_adapter or bool(mcp_url) or bool(session_token)
+        if stored and not explicit_live:
+            return {
+                "use_demo_adapter": stored.get("use_demo_adapter", True),
+                "mcp_url": stored.get("mcp_url"),
+                "session_token": stored.get("session_token"),
+            }
+        return {
+            "use_demo_adapter": use_demo_adapter,
+            "mcp_url": mcp_url,
+            "session_token": session_token,
         }
 
     async def _build_graph(
@@ -139,6 +182,14 @@ def merge_account_plan_draft(existing: dict[str, Any] | None, incoming: dict[str
 
 def should_persist_draft(intent: str, state: dict[str, Any]) -> bool:
     return intent == "upload_account_plan" and state.get("account_plan_data") is not None
+
+
+def _redact_session_config(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "use_demo_adapter": config.get("use_demo_adapter"),
+        "mcp_url": config.get("mcp_url"),
+        "has_session_token": bool(config.get("session_token")),
+    }
 
 
 def build_demo_adapter() -> InMemorySalesforceToolAdapter:
