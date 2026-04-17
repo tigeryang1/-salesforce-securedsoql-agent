@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from app.graph.state import AgentState
 from app.services.contracts import SalesforceToolAdapter
+
+logger = logging.getLogger(__name__)
 
 
 _ERROR_PATTERNS: list[tuple[str, str]] = [
@@ -31,13 +35,16 @@ def make_query_execute_node(adapter: SalesforceToolAdapter):
 
         result = await adapter.query_salesforce(query)
         if not result.success:
+            error_type = classify_query_error(result.error)
+            logger.warning("query failed error_type=%s error=%s", error_type, result.error)
             return {
                 "status": "query_error",
                 "query_error": result.error,
-                "query_error_type": classify_query_error(result.error),
+                "query_error_type": error_type,
                 "query_status_code": result.status_code,
             }
 
+        logger.info("query succeeded records=%d", result.record_count)
         return {
             "status": "queried",
             "records": result.records,

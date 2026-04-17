@@ -24,7 +24,7 @@ def soql_builder_node(state: AgentState) -> AgentState:
     if target_object == "Account_Plan__c" and state.get("resolved_account_id"):
         where_clause = f" WHERE AccountPlan__c = '{state['resolved_account_id']}'"
     elif target_object == "Account" and state.get("account_name"):
-        account_name = state["account_name"].replace("'", "\\'")
+        account_name = state["account_name"].replace("'", "''")
         where_clause = f" WHERE Name LIKE '%{account_name}%'"
 
     soql_query = f"SELECT {', '.join(selected)} FROM {target_object}{where_clause} LIMIT 10"

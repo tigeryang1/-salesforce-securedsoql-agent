@@ -1,5 +1,9 @@
 import asyncio
 
+import pytest
+
+pytest.importorskip("mcp", reason="mcp package not installed")
+
 from app.mcp_server import approve_account_plan, get_agent_state, reset_agent, run_langgraph_agent, service
 
 

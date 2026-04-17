@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Awaitable, Callable
 
 from app.services.salesforce_tools import CallableSalesforceToolAdapter
+
+logger = logging.getLogger(__name__)
 
 
 async def build_streamable_http_adapter(
@@ -25,6 +28,7 @@ async def build_streamable_http_adapter(
     missing = sorted(required - set(tools_by_name))
     if missing:
         raise ValueError(f"MCP server is missing required tools: {', '.join(missing)}")
+    logger.info("connected to MCP server at %s with %d tools", mcp_url, len(tools))
 
     async def describe_fn(sobject_name: str) -> dict[str, Any]:
         return await tools_by_name["describe_salesforce_object"].ainvoke({"sobject_name": sobject_name})

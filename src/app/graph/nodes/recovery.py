@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 
 from app.graph.state import AgentState
 from app.utils.security import remove_field_from_where_or_order_by
 
+logger = logging.getLogger(__name__)
 
 INFERENCE_RE = re.compile(r"Inference attack detected.*?field[:\s]+([A-Za-z0-9_]+)", re.IGNORECASE)
 
@@ -13,6 +15,7 @@ def recovery_node(state: AgentState) -> AgentState:
     query_error = state.get("query_error") or ""
     retry_count = state.get("retry_count", 0)
     if retry_count >= 1:
+        logger.warning("recovery exhausted retry budget")
         return {"status": "error"}
     if "Inference attack detected" not in query_error:
         return {"status": "error"}
@@ -22,6 +25,7 @@ def recovery_node(state: AgentState) -> AgentState:
         return {"status": "error"}
 
     blocked_field = match.group(1)
+    logger.info("recovering from inference attack by removing field=%s", blocked_field)
     recovered = remove_field_from_where_or_order_by(state["soql_query"], blocked_field)
     return {
         "recovered_soql_query": recovered,

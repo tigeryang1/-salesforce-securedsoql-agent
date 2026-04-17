@@ -4,7 +4,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from app.agent_service import AgentSessionService
+from app.agent_service import AgentSessionService, merge_account_plan_draft
 from app.config import get_settings
 
 
@@ -32,7 +32,7 @@ async def run_langgraph_agent(
     mcp_url: str | None = None,
     session_token: str | None = None,
 ) -> dict[str, Any]:
-    merged_plan_data = _merge_context_into_plan_data(context, account_plan_data)
+    merged_plan_data = merge_account_plan_draft(context, account_plan_data)
     state = await service.run(
         user_input=prompt,
         session_id=session_id,
@@ -85,20 +85,6 @@ def get_agent_state(session_id: str) -> dict[str, Any]:
 @mcp.tool()
 def reset_agent(session_id: str) -> dict[str, Any]:
     return service.reset(session_id)
-
-
-def _merge_context_into_plan_data(
-    context: dict[str, Any] | None,
-    account_plan_data: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    if not context and not account_plan_data:
-        return None
-    merged: dict[str, Any] = {}
-    for payload in (context or {}, account_plan_data or {}):
-        for key, value in payload.items():
-            if value not in (None, ""):
-                merged[key] = value
-    return merged
 
 
 if __name__ == "__main__":

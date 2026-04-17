@@ -20,7 +20,7 @@ def make_resolve_account_node(adapter: SalesforceToolAdapter):
         if not account_name:
             return {}
 
-        safe_account_name = account_name.replace("'", "\\'")
+        safe_account_name = account_name.replace("'", "''")
         exact_result = await adapter.query_salesforce(
             f"SELECT Id, Name, Industry FROM Account WHERE Name = '{safe_account_name}' LIMIT 5"
         )

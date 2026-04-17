@@ -367,25 +367,25 @@ The account-plan draft in `src/app/services/account_plan.py` is organized into 1
 |---|---|---|
 | Foundation | AccountPlan__c, Plan_Year__c | 25% |
 | Strategy | Annual_Pinterest_Goals_Strategy__c, Business_Challenges_Priorities__c, Opportunity_for_Growth__c | 20% |
-| Client objectives | CEO_Strategic_Priorities__c, Recent_News__c | 5% |
+| Client objectives | CEO_Strategic_Priorities__c, Recent_News__c | 3% |
 | Media / Marketing | Pinterest_Account_Health__c, CMO_Marketing_Goals_Approach__c, Measurement__c, Creative_Strategy__c, Agency__c | 5% |
-| Key moments | Q1–Q4_Events__c | 5% |
-| Value proposition | Opportunity_for_Growth__c, Keys_to_Unlocking_Growth__c | 5% |
+| Key moments | Q1–Q4_Events__c | 3% |
+| Value proposition | Opportunity_for_Growth__c, Keys_to_Unlocking_Growth__c | 4% |
 | Tactics | Biggest_Opportunities_to_unlock_growth__c, Q1–Q4_Objectives__c | 5% |
 | Spend plan | This_Year_Annual_Spend_Est__c, Plan_Year_Goals__c, Q1–Q4_Spend_Estimate__c | 15% |
-| Stakeholders | Leadership__c, Relationship_Map__c, Primary_Contact__c, Budget_Decision_Maker__c, Highest_Level_of_Contact__c | 5% |
-| Competitive | Competitive_Landscape__c, Competitor_1–3__c | 3% |
+| Stakeholders | Leadership__c, Relationship_Map__c, Primary_Contact__c, Budget_Decision_Maker__c, Highest_Level_of_Contact__c, Other_Asks__c | 10% |
+| Competitive | Competitive_Landscape__c, Competitor_1–3__c | 4% |
 | Measurement vendors | Measurement_Vendors__c, Q2–Q4_Measurement_Vendors__c | 3% |
-| Review cadence | Planning_Cadence__c, Touchbase_Frequency__c, Q1–Q4_Upcoming_Meetings__c | 4% |
+| Review cadence | Planning_Cadence__c, Touchbase_Frequency__c, Q1–Q4_Upcoming_Meetings__c | 3% |
 
 ### Readiness scoring
 
 The readiness score is the weighted sum of completed sections. Labels are:
 
 - `early` — 0–39%
-- `partial` — 40–69%
-- `almost_ready` — 70–89%
-- `ready` — 90–100%
+- `partial` — 40–74%
+- `almost_ready` — 75–99%
+- `ready` — 100%
 
 ### Guided drafting
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from copy import deepcopy
 from typing import Any
 
 from app.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 from app.graph.builder import build_agent_graph
 from app.services.contracts import FieldDescription, ObjectDescription, QueryResult, UploadResult
 from app.services.llm import AgentReasoner, build_chat_model
@@ -17,8 +21,43 @@ class AgentSessionService:
         self._draft_store: dict[str, dict[str, Any]] = {}
         self._last_state_store: dict[str, dict[str, Any]] = {}
         self._session_config_store: dict[str, dict[str, Any]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._locks_guard = asyncio.Lock()
+
+    async def _session_lock(self, session_id: str) -> asyncio.Lock:
+        async with self._locks_guard:
+            if session_id not in self._locks:
+                self._locks[session_id] = asyncio.Lock()
+            return self._locks[session_id]
 
     async def run(
+        self,
+        *,
+        user_input: str,
+        session_id: str,
+        soql_query: str | None = None,
+        sobject_name: str | None = None,
+        account_plan_data: dict[str, Any] | None = None,
+        approved: bool = False,
+        use_demo_adapter: bool = True,
+        mcp_url: str | None = None,
+        session_token: str | None = None,
+    ) -> dict[str, Any]:
+        lock = await self._session_lock(session_id)
+        async with lock:
+            return await self._run_unlocked(
+                user_input=user_input,
+                session_id=session_id,
+                soql_query=soql_query,
+                sobject_name=sobject_name,
+                account_plan_data=account_plan_data,
+                approved=approved,
+                use_demo_adapter=use_demo_adapter,
+                mcp_url=mcp_url,
+                session_token=session_token,
+            )
+
+    async def _run_unlocked(
         self,
         *,
         user_input: str,
@@ -44,6 +83,7 @@ class AgentSessionService:
             mcp_url=session_config["mcp_url"],
             session_token=session_config["session_token"],
         )
+        logger.info("session=%s running graph (demo=%s)", session_id, session_config["use_demo_adapter"])
         state = await graph.ainvoke(
             {
                 "user_input": user_input,
@@ -54,6 +94,10 @@ class AgentSessionService:
                 "retry_count": 0,
                 "security_notes": [],
             }
+        )
+        logger.info(
+            "session=%s finished intent=%s status=%s",
+            session_id, state.get("intent"), state.get("status"),
         )
         self._last_state_store[session_id] = dict(state)
         self._session_config_store[session_id] = dict(session_config)
@@ -75,27 +119,29 @@ class AgentSessionService:
         mcp_url: str | None = None,
         session_token: str | None = None,
     ) -> dict[str, Any]:
-        stored_draft = self._draft_store.get(session_id)
-        merged_payload = merge_account_plan_draft(stored_draft, account_plan_data)
-        session_config = self._effective_session_config(
-            session_id=session_id,
-            use_demo_adapter=use_demo_adapter,
-            mcp_url=mcp_url,
-            session_token=session_token,
-        )
-        state = await self.run(
-            user_input=user_input,
-            session_id=session_id,
-            account_plan_data=merged_payload,
-            approved=True,
-            use_demo_adapter=session_config["use_demo_adapter"],
-            mcp_url=session_config["mcp_url"],
-            session_token=session_config["session_token"],
-        )
-        if state.get("status") == "uploaded":
-            self._draft_store.pop(session_id, None)
-            self._session_config_store.pop(session_id, None)
-        return state
+        lock = await self._session_lock(session_id)
+        async with lock:
+            stored_draft = self._draft_store.get(session_id)
+            merged_payload = merge_account_plan_draft(stored_draft, account_plan_data)
+            session_config = self._effective_session_config(
+                session_id=session_id,
+                use_demo_adapter=use_demo_adapter,
+                mcp_url=mcp_url,
+                session_token=session_token,
+            )
+            state = await self._run_unlocked(
+                user_input=user_input,
+                session_id=session_id,
+                account_plan_data=merged_payload,
+                approved=True,
+                use_demo_adapter=session_config["use_demo_adapter"],
+                mcp_url=session_config["mcp_url"],
+                session_token=session_config["session_token"],
+            )
+            if state.get("status") == "uploaded":
+                self._draft_store.pop(session_id, None)
+                self._session_config_store.pop(session_id, None)
+            return state
 
     def get_state(self, session_id: str) -> dict[str, Any]:
         config = deepcopy(self._session_config_store.get(session_id))
@@ -107,6 +153,7 @@ class AgentSessionService:
         }
 
     def reset(self, session_id: str) -> dict[str, Any]:
+        logger.info("session=%s resetting", session_id)
         removed_draft = self._draft_store.pop(session_id, None)
         removed_state = self._last_state_store.pop(session_id, None)
         removed_config = self._session_config_store.pop(session_id, None)
@@ -162,10 +209,12 @@ class AgentSessionService:
 def _build_reasoner(settings: Settings) -> AgentReasoner:
     model_name = settings.agent_model
     if not model_name:
+        logger.info("no AGENT_MODEL configured, using heuristic-only mode")
         return AgentReasoner(model=None)
     try:
         return AgentReasoner(model=build_chat_model(model_name))
     except Exception:
+        logger.warning("failed to load model %r, falling back to heuristic mode", model_name, exc_info=True)
         return AgentReasoner(model=None)
 
 

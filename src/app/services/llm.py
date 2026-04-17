@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +10,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.services.business_guide import extract_account_name
 from app.services.summary import summarize_query_result
+
+logger = logging.getLogger(__name__)
 
 
 def build_chat_model(model_name: str) -> BaseChatModel:
@@ -53,7 +56,7 @@ class AgentReasoner:
             try:
                 return self._llm_classify_intent(user_input)
             except Exception:
-                pass
+                logger.warning("LLM intent classification failed, falling back to heuristic", exc_info=True)
 
         return self._heuristic_classify_intent(user_input)
 
@@ -117,6 +120,7 @@ class AgentReasoner:
             parsed = json.loads(content)
             return parsed["message"]
         except Exception:
+            logger.warning("LLM response composition failed, using fallback", exc_info=True)
             return self._compose_fallback_response(state)
 
     def _compose_fallback_response(self, state: dict[str, Any]) -> str:
