@@ -1,4 +1,4 @@
-from app.api.routes import merge_account_plan_draft
+from app.agent_service import merge_account_plan_draft
 from app.services.account_plan import build_account_plan_draft
 
 

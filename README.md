@@ -13,6 +13,8 @@ This project is built around the server's SecuredSOQL behavior rather than gener
 - Business-user instructions: [BUSINESS_USER_GUIDE.md](C:/Users/tiger/project/salesforce-securedsoql-agent/BUSINESS_USER_GUIDE.md)
 - Source entrypoints:
   - API: [src/app/api/routes.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/api/routes.py)
+  - MCP server: [src/app/mcp_server.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/mcp_server.py)
+  - Shared service: [src/app/agent_service.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/agent_service.py)
   - CLI: [src/app/main.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/main.py)
   - Graph: [src/app/graph/builder.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/graph/builder.py)
 
@@ -26,10 +28,11 @@ This project is built around the server's SecuredSOQL behavior rather than gener
 - requires approval before upload
 - supports business-user-guided account-plan drafting
 - supports session-based partial draft accumulation with `session_id`
+- can be hosted as an MCP server that wraps the LangGraph runtime directly
 
 ## MCP server contract
 
-The target MCP server is exposed over Streamable HTTP and provides three tools.
+The target Salesforce MCP server is exposed over Streamable HTTP and provides three tools.
 
 ### `describe_salesforce_object`
 
@@ -65,7 +68,7 @@ Important behaviors:
 
 ## Design principles
 
-The graph is intentionally structured around the MCP server’s constraints:
+The graph is intentionally structured around the MCP server's constraints:
 
 - `describe` comes before non-trivial querying
 - query execution checks `success` explicitly
@@ -83,7 +86,8 @@ The graph is intentionally structured around the MCP server’s constraints:
 - inference-attack retry for restricted query clauses
 - account-plan validation
 - approval-gated account-plan upload
-- live Streamable HTTP MCP adapter path
+- live Streamable HTTP Salesforce MCP adapter path
+- outer MCP server wrapper for other AI agents
 
 ### Business-user-guided flows
 
@@ -99,12 +103,14 @@ The graph is intentionally structured around the MCP server’s constraints:
 
 ```text
 src/app/
-  api/          FastAPI routes
-  graph/        LangGraph state + nodes
-  models/       API request/response models
-  services/     MCP adapters, validation, business logic
-  utils/        SOQL parsing and Salesforce helpers
-tests/          Behavior-focused tests
+  agent_service.py Shared runtime used by API and MCP server
+  api/             FastAPI routes
+  graph/           LangGraph state + nodes
+  mcp_server.py    MCP wrapper that exposes the agent as tools
+  models/          API request/response models
+  services/        MCP adapters, validation, business logic
+  utils/           SOQL parsing and Salesforce helpers
+tests/             Behavior-focused tests
 ```
 
 ## Install
@@ -121,6 +127,29 @@ $env:OPENAI_API_KEY="your_key"
 $env:AGENT_API_TOKEN="change-me"
 python -m uvicorn app.api.routes:app --host 127.0.0.1 --port 8081
 ```
+
+## Run as an MCP server
+
+This project can also be hosted as its own MCP server. In that mode:
+
+- another AI agent connects to this server over MCP
+- this server calls the shared `AgentSessionService`
+- the shared service runs the LangGraph workflow
+- the LangGraph workflow calls the inner Salesforce MCP server when needed
+
+Available MCP tools:
+
+- `run_langgraph_agent`
+- `get_agent_state`
+- `reset_agent`
+
+Run:
+
+```powershell
+python -m app.mcp_server
+```
+
+The MCP wrapper is intentionally thin. It delegates to [agent_service.py](C:/Users/tiger/project/salesforce-securedsoql-agent/src/app/agent_service.py) instead of duplicating workflow logic.
 
 ## API usage
 
@@ -195,7 +224,7 @@ This performs a lightweight `describe_salesforce_object("Account")` call and pri
 - not a broad multi-object Salesforce analyst yet
 - draft persistence is API-process-local, not durable storage
 - business guidance is strong but still heuristic
-- constrained to the current 3-tool MCP surface
+- constrained to the current 3-tool Salesforce MCP surface
 
 ## Testing
 
@@ -212,6 +241,8 @@ The test suite covers:
 - account resolution
 - MCP adapter mapping
 - draft scoring and memory helpers
+- shared agent service behavior
+- MCP wrapper behavior
 
 ## Notes on integration
 

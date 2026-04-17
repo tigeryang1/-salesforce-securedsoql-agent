@@ -12,6 +12,7 @@ dependencies = [
   "langchain-google-genai==4.2.2",
   "langchain-mcp-adapters==0.1.9",
   "langgraph==1.1.6",
+  "mcp",
   "pydantic==2.13.1",
   "python-dotenv==1.2.2",
   "uvicorn==0.43.0",
