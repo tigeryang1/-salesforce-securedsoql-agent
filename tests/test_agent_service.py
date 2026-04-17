@@ -30,7 +30,7 @@ def test_agent_service_merges_partial_draft_state() -> None:
     assert first["status"] == "needs_input"
     assert second["account_plan_data"]["Plan_Year__c"] == "2026"
     assert second["account_plan_data"]["Annual_Pinterest_Goals_Strategy__c"] == "Grow consideration"
-    state = service.get_state("nike-1")
+    state = asyncio.run(service.get_state("nike-1"))
     assert state["account_plan_data"]["Annual_Pinterest_Goals_Strategy__c"] == "Grow consideration"
 
 
@@ -43,10 +43,10 @@ def test_agent_service_reset_clears_session() -> None:
             use_demo_adapter=True,
         )
     )
-    reset = service.reset("nike-2")
+    reset = asyncio.run(service.reset("nike-2"))
     assert reset["reset"] is True
-    assert service.get_state("nike-2")["account_plan_data"] is None
-    assert service.get_state("nike-2")["session_config"] is None
+    assert asyncio.run(service.get_state("nike-2"))["account_plan_data"] is None
+    assert asyncio.run(service.get_state("nike-2"))["session_config"] is None
 
 
 def test_merge_account_plan_draft_helper() -> None:
@@ -89,7 +89,7 @@ def test_approve_does_not_clear_draft_when_upload_does_not_happen() -> None:
     )
 
     assert state["status"] == "needs_input"
-    persisted = service.get_state("nike-3")
+    persisted = asyncio.run(service.get_state("nike-3"))
     assert persisted["account_plan_data"] is not None
     assert persisted["session_config"]["use_demo_adapter"] is True
 

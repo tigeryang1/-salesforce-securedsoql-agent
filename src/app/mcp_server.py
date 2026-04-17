@@ -78,13 +78,13 @@ async def approve_account_plan(
 
 
 @mcp.tool()
-def get_agent_state(session_id: str) -> dict[str, Any]:
-    return service.get_state(session_id)
+async def get_agent_state(session_id: str) -> dict[str, Any]:
+    return await service.get_state(session_id)
 
 
 @mcp.tool()
-def reset_agent(session_id: str) -> dict[str, Any]:
-    return service.reset(session_id)
+async def reset_agent(session_id: str) -> dict[str, Any]:
+    return await service.reset(session_id)
 
 
 if __name__ == "__main__":

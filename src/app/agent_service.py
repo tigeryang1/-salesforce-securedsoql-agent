@@ -143,27 +143,31 @@ class AgentSessionService:
                 self._session_config_store.pop(session_id, None)
             return state
 
-    def get_state(self, session_id: str) -> dict[str, Any]:
-        config = deepcopy(self._session_config_store.get(session_id))
-        return {
-            "session_id": session_id,
-            "account_plan_data": deepcopy(self._draft_store.get(session_id)),
-            "last_state": deepcopy(self._last_state_store.get(session_id)),
-            "session_config": _redact_session_config(config) if config else None,
-        }
+    async def get_state(self, session_id: str) -> dict[str, Any]:
+        lock = await self._session_lock(session_id)
+        async with lock:
+            config = deepcopy(self._session_config_store.get(session_id))
+            return {
+                "session_id": session_id,
+                "account_plan_data": deepcopy(self._draft_store.get(session_id)),
+                "last_state": deepcopy(self._last_state_store.get(session_id)),
+                "session_config": _redact_session_config(config) if config else None,
+            }
 
-    def reset(self, session_id: str) -> dict[str, Any]:
-        logger.info("session=%s resetting", session_id)
-        removed_draft = self._draft_store.pop(session_id, None)
-        removed_state = self._last_state_store.pop(session_id, None)
-        removed_config = self._session_config_store.pop(session_id, None)
-        return {
-            "session_id": session_id,
-            "reset": True,
-            "had_draft": removed_draft is not None,
-            "had_state": removed_state is not None,
-            "had_config": removed_config is not None,
-        }
+    async def reset(self, session_id: str) -> dict[str, Any]:
+        lock = await self._session_lock(session_id)
+        async with lock:
+            logger.info("session=%s resetting", session_id)
+            removed_draft = self._draft_store.pop(session_id, None)
+            removed_state = self._last_state_store.pop(session_id, None)
+            removed_config = self._session_config_store.pop(session_id, None)
+            return {
+                "session_id": session_id,
+                "reset": True,
+                "had_draft": removed_draft is not None,
+                "had_state": removed_state is not None,
+                "had_config": removed_config is not None,
+            }
 
     def _effective_session_config(
         self,

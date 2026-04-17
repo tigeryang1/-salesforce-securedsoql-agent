@@ -34,13 +34,13 @@ def test_get_and_reset_agent_state_tools() -> None:
             session_id="mcp-2",
         )
     )
-    state = get_agent_state("mcp-2")
+    state = asyncio.run(get_agent_state("mcp-2"))
     assert state["account_plan_data"] is not None
     assert state["session_config"] is not None
 
-    reset = reset_agent("mcp-2")
+    reset = asyncio.run(reset_agent("mcp-2"))
     assert reset["reset"] is True
-    cleared = get_agent_state("mcp-2")
+    cleared = asyncio.run(get_agent_state("mcp-2"))
     assert cleared["account_plan_data"] is None
 
 
@@ -63,7 +63,7 @@ def test_approve_account_plan_tool_uploads_after_drafting() -> None:
     assert result["status"] == "uploaded"
     assert result["data"]["upload_record_id"] == "a01000000000000AAA"
 
-    cleared = get_agent_state("mcp-3")
+    cleared = asyncio.run(get_agent_state("mcp-3"))
     assert cleared["account_plan_data"] is None
 
 
@@ -94,5 +94,5 @@ def test_approve_account_plan_keeps_state_if_not_uploaded() -> None:
     )
     service.approve = original_approve  # type: ignore[method-assign]
     assert result["status"] == "needs_input"
-    persisted = get_agent_state("mcp-4")
+    persisted = asyncio.run(get_agent_state("mcp-4"))
     assert persisted["account_plan_data"] is not None

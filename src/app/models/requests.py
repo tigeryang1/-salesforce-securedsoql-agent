@@ -23,7 +23,7 @@ class RunRequest(BaseModel):
 class ApprovalRequest(BaseModel):
     user_input: str
     session_id: str = "default"
-    account_plan_data: dict[str, Any]
+    account_plan_data: dict[str, Any] | None = None
     mcp_url: str | None = None
     session_token: str | None = None
     use_demo_adapter: bool = True
