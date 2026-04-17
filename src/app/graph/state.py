@@ -19,6 +19,7 @@ class AgentState(TypedDict, total=False):
     filtered_fields: list[str]
     security_notes: list[str]
     query_error: str | None
+    query_error_type: str | None
     query_status_code: int | None
     retry_count: int
     write_validation_errors: list[str]

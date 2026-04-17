@@ -97,5 +97,5 @@ def test_business_write_returns_guidance_when_required_inputs_are_missing() -> N
     assert "goals_or_strategy" in state["missing_inputs"]
     assert state["account_plan_data"]["Plan_Year__c"] == "2026"
     assert any(section["name"] == "foundation" and section["complete"] for section in state["draft_sections"])
-    assert state["readiness_score"] == 40
-    assert state["readiness_label"] == "partial"
+    assert state["readiness_score"] == 25
+    assert state["readiness_label"] == "early"

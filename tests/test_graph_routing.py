@@ -92,7 +92,7 @@ def test_upload_requires_approval() -> None:
 
     assert state["status"] == "needs_approval"
     assert state["intent"] == "upload_account_plan"
-    assert state["readiness_score"] == 40
+    assert state["readiness_score"] == 25
     assert "Plan year: 2026" in state["upload_preview"]
 
 

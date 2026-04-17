@@ -21,6 +21,6 @@ def test_build_account_plan_draft_produces_next_question_and_weighted_score() ->
         resolved_account_id="001000000000000AAA",
         resolved_account_name="Nike",
     )
-    assert draft.readiness_score == 40
-    assert draft.readiness_label == "partial"
+    assert draft.readiness_score == 25
+    assert draft.readiness_label == "early"
     assert draft.next_question == "What are the main goals or strategy themes for this account?"

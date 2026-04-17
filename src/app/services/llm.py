@@ -86,6 +86,8 @@ class AgentReasoner:
     def _compose_fallback_response(self, state: dict[str, Any]) -> str:
         status = state.get("status", "completed")
         intent = state.get("intent", "unknown")
+        if status in ("error", "query_error"):
+            return _compose_error_message(state)
         if status == "needs_approval":
             preview = state.get("upload_preview")
             score = state.get("readiness_score")
@@ -147,6 +149,46 @@ class AgentReasoner:
                 return f"Account plan {action} successfully with record id {record_id}. Uploaded: {preview}."
             return f"Account plan {action} successfully with record id {record_id}."
         return "Completed request."
+
+
+_ERROR_MESSAGES: dict[str, str] = {
+    "object_not_allowed": (
+        "This Salesforce object is not available for querying through the SecuredSOQL API. "
+        "Try a different object, or use describe to see which objects are accessible."
+    ),
+    "no_access": (
+        "You do not have permission to access this Salesforce object. "
+        "Contact your administrator if you believe this is incorrect."
+    ),
+    "invalid_email": (
+        "The email address provided is not in a valid format. "
+        "Please check the email and try again."
+    ),
+    "user_not_found": (
+        "No active Salesforce user was found with that email address. "
+        "Verify the email belongs to an active user and try again."
+    ),
+    "missing_parameter": (
+        "The query is missing a required parameter. "
+        "This is likely an internal issue — please try rephrasing your request."
+    ),
+    "inference_attack": (
+        "The query was blocked because it used a restricted field in a filter or sort clause. "
+        "The agent attempted recovery, but the query could not be completed."
+    ),
+    "missing_query": "No SOQL query was available to execute. Please provide a query or describe your request.",
+}
+
+
+def _compose_error_message(state: dict[str, Any]) -> str:
+    error_type = state.get("query_error_type", "unknown")
+    raw_error = state.get("query_error") or ""
+    message = _ERROR_MESSAGES.get(error_type)
+    if message:
+        return message
+    if raw_error:
+        return f"The query failed: {raw_error}"
+    return "The request could not be completed due to an unexpected error."
 
 
 def _extract_guess_from_text(user_input: str) -> str | None:

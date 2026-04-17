@@ -16,14 +16,31 @@ BUSINESS_FIELD_MAP: dict[str, tuple[str, ...]] = {
         "Q3_Spend_Estimate__c",
         "Q4_Spend_Estimate__c",
     ),
-    "leadership": ("Leadership__c", "Primary_Contact__c", "Budget_Decision_Maker__c"),
-    "opportunities": ("Opportunity_for_Growth__c", "Keys_to_Unlocking_Growth__c"),
+    "leadership": ("Leadership__c", "Primary_Contact__c", "Budget_Decision_Maker__c", "Highest_Level_of_Contact__c"),
+    "opportunities": ("Opportunity_for_Growth__c", "Keys_to_Unlocking_Growth__c", "Biggest_Opportunities_to_unlock_growth__c"),
     "measurement": ("Measurement__c", "Measurement_Vendors__c"),
     "competitive": ("Competitive_Landscape__c", "Competitor_1__c", "Competitor_2__c", "Competitor_3__c"),
+    "events": ("Q1_Events__c", "Q2_Events__c", "Q3_Events__c", "Q4_Events__c"),
+    "key moments": ("Q1_Events__c", "Q2_Events__c", "Q3_Events__c", "Q4_Events__c"),
+    "objectives": ("Q1_Objectives__c", "Q2_Objectives__c", "Q3_Objectives__c", "Q4_Objectives__c"),
+    "tactics": ("Biggest_Opportunities_to_unlock_growth__c", "Q1_Objectives__c", "Q2_Objectives__c", "Q3_Objectives__c", "Q4_Objectives__c"),
+    "creative": ("Creative_Strategy__c",),
+    "agency": ("Agency__c",),
+    "health": ("Pinterest_Account_Health__c",),
+    "marketing": ("CMO_Marketing_Goals_Approach__c", "Creative_Strategy__c"),
+    "cadence": ("Planning_Cadence__c", "Touchbase_Frequency__c"),
+    "meetings": ("Q1_Upcoming_Meetings__c", "Q2_Upcoming_Meetings__c", "Q3_Upcoming_Meetings__c", "Q4_Upcoming_Meetings__c"),
+    "problems": ("Q1_Problem_Statement_for_Product_MSI__c", "Q2_Problem_Statement_for_Product_MSI__c", "Q3_Problem_Statement_for_Product_MSI__c", "Q4_Problem_Statement_for_Product_MSI__c"),
+    "vendors": ("Measurement_Vendors__c", "Q2_Measurement_Vendors__c", "Q3_Measurement_Vendors__c", "Q4_Measurement_Vendors__c"),
+    "relationship": ("Relationship_Map__c", "Leadership__c"),
 }
 
 ACCOUNT_SIGNALS = ("account", "customer", "client", "advertiser", "brand")
-ACCOUNT_PLAN_SIGNALS = ("account plan", "plan", "growth opportunities", "client priorities", "spend", "leadership")
+ACCOUNT_PLAN_SIGNALS = (
+    "account plan", "plan", "growth opportunities", "client priorities",
+    "spend", "leadership", "events", "key moments", "objectives", "tactics",
+    "creative", "agency", "cadence", "meetings", "competitive", "measurement",
+)
 
 
 @dataclass(slots=True)
@@ -156,5 +173,7 @@ def _default_fields_for_object(target_object: str | None) -> list[str]:
             "Business_Challenges_Priorities__c",
             "Opportunity_for_Growth__c",
             "This_Year_Annual_Spend_Est__c",
+            "Leadership__c",
+            "Competitive_Landscape__c",
         ]
     return ["Id", "Name"]
