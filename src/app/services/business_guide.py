@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 BUSINESS_FIELD_MAP: dict[str, tuple[str, ...]] = {
@@ -68,7 +71,7 @@ def interpret_business_request(user_input: str, *, model: Any = None) -> Busines
         try:
             return _llm_interpret(user_input, model)
         except Exception:
-            pass
+            logger.warning("LLM business context extraction failed, falling back to heuristic", exc_info=True)
 
     return _heuristic_interpret(user_input)
 

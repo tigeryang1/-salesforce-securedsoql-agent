@@ -4,6 +4,7 @@ from app.graph.state import AgentState
 from app.services.contracts import SalesforceToolAdapter
 from app.services.entity_resolution import is_unambiguous_best_match, rank_account_matches
 from app.utils.salesforce_ids import looks_like_salesforce_id
+from app.utils.security import escape_soql_like, escape_soql_string
 
 
 def make_resolve_account_node(adapter: SalesforceToolAdapter):
@@ -20,9 +21,9 @@ def make_resolve_account_node(adapter: SalesforceToolAdapter):
         if not account_name:
             return {}
 
-        safe_account_name = account_name.replace("'", "''")
+        exact_name = escape_soql_string(account_name)
         exact_result = await adapter.query_salesforce(
-            f"SELECT Id, Name, Industry FROM Account WHERE Name = '{safe_account_name}' LIMIT 5"
+            f"SELECT Id, Name, Industry FROM Account WHERE Name = '{exact_name}' LIMIT 5"
         )
         if not exact_result.success:
             return {
@@ -32,8 +33,9 @@ def make_resolve_account_node(adapter: SalesforceToolAdapter):
             }
         records = exact_result.records
         if not records:
+            like_name = escape_soql_like(account_name)
             fuzzy_result = await adapter.query_salesforce(
-                f"SELECT Id, Name, Industry FROM Account WHERE Name LIKE '%{safe_account_name}%' LIMIT 5"
+                f"SELECT Id, Name, Industry FROM Account WHERE Name LIKE '%{like_name}%' LIMIT 5"
             )
             if not fuzzy_result.success:
                 return {

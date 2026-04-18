@@ -47,6 +47,16 @@ def extract_order_by_clause(soql_query: str) -> str | None:
     return clause or None
 
 
+def escape_soql_like(value: str) -> str:
+    """Escape SOQL LIKE wildcards and single quotes in a user-provided value."""
+    return value.replace("'", "''").replace("%", "\\%").replace("_", "\\_")
+
+
+def escape_soql_string(value: str) -> str:
+    """Escape single quotes for a SOQL string literal."""
+    return value.replace("'", "''")
+
+
 def remove_field_from_where_or_order_by(soql_query: str, field_name: str) -> str:
     updated = re.sub(
         rf"\b{re.escape(field_name)}\b\s*(=|!=|<|>|<=|>=|LIKE|IN)\s*('[^']*'|[A-Za-z0-9_().-]+)\s*(AND|OR)?",

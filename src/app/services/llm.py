@@ -30,7 +30,6 @@ def build_chat_model(model_name: str) -> BaseChatModel:
 class IntentDecision:
     intent: str
     target_object: str | None = None
-    needs_schema: bool = False
 
 
 class AgentReasoner:
@@ -46,11 +45,11 @@ class AgentReasoner:
         account_plan_data: dict[str, Any] | None,
     ) -> IntentDecision:
         if account_plan_data:
-            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c", needs_schema=False)
+            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c")
         if soql_query:
-            return IntentDecision(intent="query", needs_schema=True)
+            return IntentDecision(intent="query")
         if sobject_name:
-            return IntentDecision(intent="describe", target_object=sobject_name, needs_schema=True)
+            return IntentDecision(intent="describe", target_object=sobject_name)
 
         if self.model is not None:
             try:
@@ -63,12 +62,12 @@ class AgentReasoner:
     def _heuristic_classify_intent(self, user_input: str) -> IntentDecision:
         lowered = user_input.lower()
         if "account plan" in lowered and any(word in lowered for word in ("upload", "create", "update", "save")):
-            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c", needs_schema=False)
+            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c")
         if any(word in lowered for word in ("prepare", "draft", "build")) and "account plan" in lowered:
-            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c", needs_schema=False)
+            return IntentDecision(intent="upload_account_plan", target_object="Account_Plan__c")
         if "describe" in lowered or "fields" in lowered or "schema" in lowered:
-            return IntentDecision(intent="describe", target_object=_extract_guess_from_text(user_input), needs_schema=True)
-        return IntentDecision(intent="query", target_object=_extract_guess_from_text(user_input), needs_schema=True)
+            return IntentDecision(intent="describe", target_object=_extract_guess_from_text(user_input))
+        return IntentDecision(intent="query", target_object=_extract_guess_from_text(user_input))
 
     def _llm_classify_intent(self, user_input: str) -> IntentDecision:
         prompt = ChatPromptTemplate.from_messages([
@@ -94,8 +93,7 @@ class AgentReasoner:
         if intent not in ("describe", "query", "upload_account_plan"):
             intent = "query"
         target_object = parsed.get("target_object")
-        needs_schema = intent in ("describe", "query")
-        return IntentDecision(intent=intent, target_object=target_object, needs_schema=needs_schema)
+        return IntentDecision(intent=intent, target_object=target_object)
 
     def compose_response(self, state: dict[str, Any]) -> str:
         if self.model is None:

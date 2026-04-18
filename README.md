@@ -10,8 +10,9 @@ This project is built around the server's SecuredSOQL behavior rather than gener
 
 ## Quick links
 
-- Business-user instructions: [BUSINESS_USER_GUIDE.md](BUSINESS_USER_GUIDE.md)
-- Design document: [DESIGN.md](DESIGN.md)
+- **MCP Server Guide**: [MCP_GUIDE.md](MCP_GUIDE.md) - Complete guide for using this agent as an MCP server
+- **Business-user instructions**: [BUSINESS_USER_GUIDE.md](BUSINESS_USER_GUIDE.md)
+- **Design document**: [DESIGN.md](DESIGN.md)
 - Source entrypoints:
   - API: [src/app/api/routes.py](src/app/api/routes.py)
   - MCP server: [src/app/mcp_server.py](src/app/mcp_server.py)
@@ -132,23 +133,45 @@ python -m uvicorn app.api.routes:app --host 127.0.0.1 --port 8081
 
 This project can also be hosted as its own MCP server. In that mode:
 
-- another AI agent connects to this server over MCP
-- this server calls the shared `AgentSessionService`
-- the shared service runs the LangGraph workflow
-- the LangGraph workflow calls the inner Salesforce MCP server when needed
+- AI agents connect over MCP protocol (stdio transport)
+- The server calls the shared `AgentSessionService`
+- The service runs the LangGraph workflow
+- The workflow calls the inner Salesforce MCP server when needed
 
-Available MCP tools:
-
-- `run_langgraph_agent` — run the agent with a prompt and session context
-- `approve_account_plan` — approve and upload a drafted account plan
-- `get_agent_state` — inspect current draft and last execution state
-- `reset_agent` — clear all session data
-
-Run:
+### Quick Start
 
 ```bash
 python -m app.mcp_server
 ```
+
+The server uses stdio transport and is compatible with any MCP client.
+
+### MCP Features
+
+**4 Tools:**
+- `run_langgraph_agent` — Execute agent with natural language prompts
+- `approve_account_plan` — Approve and upload drafted plans
+- `get_agent_state` — Inspect session state
+- `reset_agent` — Clear session data
+
+**2 Resources:**
+- `draft://sessions` — List all active draft sessions
+- `draft://sessions/{session_id}` — Read specific draft state
+
+**2 Prompts:**
+- `salesforce-query-guided` — Interactive query building guide
+- `account-plan-guided` — Step-by-step plan creation guide
+
+### Complete Documentation
+
+See **[MCP_GUIDE.md](MCP_GUIDE.md)** for comprehensive documentation including:
+- Setup and configuration
+- Tool usage examples
+- Resource access patterns
+- Multi-turn workflow examples
+- Session management
+- Security features
+- Troubleshooting
 
 The MCP wrapper is intentionally thin. It delegates to [agent_service.py](src/app/agent_service.py) instead of duplicating workflow logic.
 

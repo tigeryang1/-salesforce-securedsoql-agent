@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.graph.state import AgentState
+from app.utils.security import escape_soql_like
 
 
 def soql_builder_node(state: AgentState) -> AgentState:
@@ -26,7 +27,7 @@ def soql_builder_node(state: AgentState) -> AgentState:
     elif target_object in ("Contact", "Opportunity") and state.get("resolved_account_id"):
         where_clause = f" WHERE AccountId = '{state['resolved_account_id']}'"
     elif target_object == "Account" and state.get("account_name"):
-        account_name = state["account_name"].replace("'", "''")
+        account_name = escape_soql_like(state["account_name"])
         where_clause = f" WHERE Name LIKE '%{account_name}%'"
 
     soql_query = f"SELECT {', '.join(selected)} FROM {target_object}{where_clause} LIMIT 10"

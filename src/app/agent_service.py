@@ -161,13 +161,15 @@ class AgentSessionService:
             removed_draft = self._draft_store.pop(session_id, None)
             removed_state = self._last_state_store.pop(session_id, None)
             removed_config = self._session_config_store.pop(session_id, None)
-            return {
-                "session_id": session_id,
-                "reset": True,
-                "had_draft": removed_draft is not None,
-                "had_state": removed_state is not None,
-                "had_config": removed_config is not None,
-            }
+        async with self._locks_guard:
+            self._locks.pop(session_id, None)
+        return {
+            "session_id": session_id,
+            "reset": True,
+            "had_draft": removed_draft is not None,
+            "had_state": removed_state is not None,
+            "had_config": removed_config is not None,
+        }
 
     def _effective_session_config(
         self,
