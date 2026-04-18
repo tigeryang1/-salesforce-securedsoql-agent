@@ -13,6 +13,7 @@ async def _run() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, dest="user_input")
     parser.add_argument("--session-id", default="cli")
+    parser.add_argument("--session-access-key")
     parser.add_argument("--soql")
     parser.add_argument("--object")
     parser.add_argument("--approved", action="store_true")
@@ -45,6 +46,7 @@ async def _run() -> None:
             user_input=args.user_input,
             session_id=args.session_id,
             account_plan_data=payload,
+            session_access_key=args.session_access_key,
             use_demo_adapter=args.use_demo_adapter or not args.mcp_url,
             mcp_url=args.mcp_url,
             session_token=args.session_token,
@@ -57,6 +59,7 @@ async def _run() -> None:
             sobject_name=args.object,
             account_plan_data=payload,
             approved=False,
+            session_access_key=args.session_access_key,
             use_demo_adapter=args.use_demo_adapter or not args.mcp_url,
             mcp_url=args.mcp_url,
             session_token=args.session_token,

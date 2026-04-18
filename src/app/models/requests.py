@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class RunRequest(BaseModel):
     user_input: str = Field(..., description="Natural-language request for the agent")
     session_id: str = Field(default="default", description="Conversation or draft session identifier")
+    session_access_key: str | None = Field(default=None, description="Capability key required to resume an existing session")
     soql_query: str | None = Field(default=None, description="Explicit SOQL to execute")
     sobject_name: str | None = Field(default=None, description="Explicit Salesforce object to describe")
     account_plan_data: dict[str, Any] | None = Field(
@@ -23,6 +24,7 @@ class RunRequest(BaseModel):
 class ApprovalRequest(BaseModel):
     user_input: str
     session_id: str = "default"
+    session_access_key: str | None = None
     account_plan_data: dict[str, Any] | None = None
     mcp_url: str | None = None
     session_token: str | None = None

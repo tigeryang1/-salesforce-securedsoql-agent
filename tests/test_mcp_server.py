@@ -6,14 +6,15 @@ import pytest
 pytest.importorskip("mcp", reason="mcp package not installed")
 
 from app.mcp_server import (
+    account_plan_guided,
     approve_account_plan,
     get_agent_state,
     list_draft_sessions,
+    read_draft_session_legacy,
     read_draft_session,
     reset_agent,
     run_langgraph_agent,
     salesforce_query_guided,
-    account_plan_guided,
     service,
 )
 
@@ -25,11 +26,13 @@ def test_run_langgraph_agent_tool_supports_multi_turn_session() -> None:
             session_id="mcp-1",
         )
     )
+    access_key = first["session_access_key"]
     second = asyncio.run(
         run_langgraph_agent(
             prompt="Main strategy is upper funnel growth",
             session_id="mcp-1",
             account_plan_data={"Annual_Pinterest_Goals_Strategy__c": "Upper funnel growth"},
+            session_access_key=access_key,
         )
     )
 
@@ -39,24 +42,25 @@ def test_run_langgraph_agent_tool_supports_multi_turn_session() -> None:
 
 
 def test_get_and_reset_agent_state_tools() -> None:
-    asyncio.run(
+    first = asyncio.run(
         run_langgraph_agent(
             prompt="Help me prepare a 2026 account plan for Nike",
             session_id="mcp-2",
         )
     )
-    state = asyncio.run(get_agent_state("mcp-2"))
+    access_key = first["session_access_key"]
+    state = asyncio.run(get_agent_state("mcp-2", access_key))
     assert state["account_plan_data"] is not None
     assert state["session_config"] is not None
 
-    reset = asyncio.run(reset_agent("mcp-2"))
+    reset = asyncio.run(reset_agent("mcp-2", access_key))
     assert reset["reset"] is True
-    cleared = asyncio.run(get_agent_state("mcp-2"))
+    cleared = asyncio.run(get_agent_state("mcp-2", access_key))
     assert cleared["account_plan_data"] is None
 
 
 def test_approve_account_plan_tool_uploads_after_drafting() -> None:
-    asyncio.run(
+    first = asyncio.run(
         run_langgraph_agent(
             prompt="Help me prepare a 2026 account plan for Nike",
             session_id="mcp-3",
@@ -69,12 +73,13 @@ def test_approve_account_plan_tool_uploads_after_drafting() -> None:
                 "AccountPlan__c": "001000000000000AAA",
                 "Plan_Year__c": "2026",
             },
+            session_access_key=first["session_access_key"],
         )
     )
     assert result["status"] == "uploaded"
     assert result["data"]["upload_record_id"] == "a01000000000000AAA"
 
-    cleared = asyncio.run(get_agent_state("mcp-3"))
+    cleared = asyncio.run(get_agent_state("mcp-3", first["session_access_key"]))
     assert cleared["account_plan_data"] is None
 
 
@@ -85,6 +90,7 @@ def test_approve_account_plan_keeps_state_if_not_uploaded() -> None:
         "mcp_url": None,
         "session_token": None,
     }
+    service._session_access_store["mcp-4"] = "access-mcp-4"  # type: ignore[attr-defined]
 
     original_approve = service.approve
 
@@ -101,11 +107,12 @@ def test_approve_account_plan_keeps_state_if_not_uploaded() -> None:
         approve_account_plan(
             session_id="mcp-4",
             account_plan_data={"AccountPlan__c": "001000000000000AAA"},
+            session_access_key="access-mcp-4",
         )
     )
     service.approve = original_approve  # type: ignore[method-assign]
     assert result["status"] == "needs_input"
-    persisted = asyncio.run(get_agent_state("mcp-4"))
+    persisted = asyncio.run(get_agent_state("mcp-4", "access-mcp-4"))
     assert persisted["account_plan_data"] is not None
 
 
@@ -131,29 +138,19 @@ def test_list_draft_sessions_resource_shows_active_sessions() -> None:
     result = asyncio.run(list_draft_sessions())
     data = json.loads(result)
 
-    assert "sessions" in data
-    assert "total_count" in data
-    assert data["total_count"] >= 2
-
-    session_ids = [s["session_id"] for s in data["sessions"]]
-    assert "resource-1" in session_ids
-    assert "resource-2" in session_ids
-
-    # Find resource-1 and check it has draft
-    resource_1 = next(s for s in data["sessions"] if s["session_id"] == "resource-1")
-    assert resource_1["has_draft"] is True
-    assert resource_1["last_intent"] == "upload_account_plan"
+    assert data["enumeration_enabled"] is False
+    assert "session_resource_template" in data
 
 
 def test_read_draft_session_resource_returns_full_state() -> None:
-    asyncio.run(
+    first = asyncio.run(
         run_langgraph_agent(
             prompt="Help me prepare a 2026 account plan for Nike",
             session_id="resource-3",
         )
     )
 
-    result = asyncio.run(read_draft_session("resource-3"))
+    result = asyncio.run(read_draft_session("resource-3", first["session_access_key"]))
     data = json.loads(result)
 
     assert data["session_id"] == "resource-3"
@@ -164,12 +161,33 @@ def test_read_draft_session_resource_returns_full_state() -> None:
 
 
 def test_read_draft_session_resource_for_nonexistent_session() -> None:
-    result = asyncio.run(read_draft_session("nonexistent-session"))
+    result = asyncio.run(read_draft_session("nonexistent-session", "missing-key"))
     data = json.loads(result)
 
+    assert data["error"] == "No active draft is available for this session."
     assert data["session_id"] == "nonexistent-session"
-    assert data["account_plan_data"] is None
-    assert data["last_state"] is None
+
+
+def test_legacy_session_resource_requires_access_key() -> None:
+    result = asyncio.run(read_draft_session_legacy("legacy-session"))
+    data = json.loads(result)
+
+    assert "session_access_key is required" in data["error"]
+
+
+def test_existing_session_access_requires_key() -> None:
+    first = asyncio.run(
+        run_langgraph_agent(
+            prompt="Help me prepare a 2026 account plan for Nike",
+            session_id="protected-1",
+        )
+    )
+
+    with pytest.raises(Exception):
+        asyncio.run(get_agent_state("protected-1", "wrong-key"))
+
+    state = asyncio.run(get_agent_state("protected-1", first["session_access_key"]))
+    assert state["account_plan_data"] is not None
 
 
 # ============================================================================

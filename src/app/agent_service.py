@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from copy import deepcopy
 from typing import Any
 
@@ -21,6 +22,7 @@ class AgentSessionService:
         self._draft_store: dict[str, dict[str, Any]] = {}
         self._last_state_store: dict[str, dict[str, Any]] = {}
         self._session_config_store: dict[str, dict[str, Any]] = {}
+        self._session_access_store: dict[str, str] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._locks_guard = asyncio.Lock()
 
@@ -39,12 +41,18 @@ class AgentSessionService:
         sobject_name: str | None = None,
         account_plan_data: dict[str, Any] | None = None,
         approved: bool = False,
+        session_access_key: str | None = None,
         use_demo_adapter: bool = True,
         mcp_url: str | None = None,
         session_token: str | None = None,
     ) -> dict[str, Any]:
         lock = await self._session_lock(session_id)
         async with lock:
+            access_key = self._authorize_session(
+                session_id=session_id,
+                session_access_key=session_access_key,
+                create_if_missing=True,
+            )
             return await self._run_unlocked(
                 user_input=user_input,
                 session_id=session_id,
@@ -52,6 +60,7 @@ class AgentSessionService:
                 sobject_name=sobject_name,
                 account_plan_data=account_plan_data,
                 approved=approved,
+                session_access_key=access_key,
                 use_demo_adapter=use_demo_adapter,
                 mcp_url=mcp_url,
                 session_token=session_token,
@@ -66,6 +75,7 @@ class AgentSessionService:
         sobject_name: str | None = None,
         account_plan_data: dict[str, Any] | None = None,
         approved: bool = False,
+        session_access_key: str | None = None,
         use_demo_adapter: bool = True,
         mcp_url: str | None = None,
         session_token: str | None = None,
@@ -99,6 +109,8 @@ class AgentSessionService:
             "session=%s finished intent=%s status=%s",
             session_id, state.get("intent"), state.get("status"),
         )
+        if session_access_key:
+            state["session_access_key"] = session_access_key
         self._last_state_store[session_id] = dict(state)
         self._session_config_store[session_id] = dict(session_config)
         if should_persist_draft(state.get("intent", "unknown"), state):
@@ -115,12 +127,18 @@ class AgentSessionService:
         user_input: str,
         session_id: str,
         account_plan_data: dict[str, Any] | None = None,
+        session_access_key: str | None = None,
         use_demo_adapter: bool = True,
         mcp_url: str | None = None,
         session_token: str | None = None,
     ) -> dict[str, Any]:
         lock = await self._session_lock(session_id)
         async with lock:
+            access_key = self._authorize_session(
+                session_id=session_id,
+                session_access_key=session_access_key,
+                create_if_missing=False,
+            )
             stored_draft = self._draft_store.get(session_id)
             merged_payload = merge_account_plan_draft(stored_draft, account_plan_data)
             session_config = self._effective_session_config(
@@ -134,6 +152,7 @@ class AgentSessionService:
                 session_id=session_id,
                 account_plan_data=merged_payload,
                 approved=True,
+                session_access_key=access_key,
                 use_demo_adapter=session_config["use_demo_adapter"],
                 mcp_url=session_config["mcp_url"],
                 session_token=session_config["session_token"],
@@ -141,11 +160,21 @@ class AgentSessionService:
             if state.get("status") == "uploaded":
                 self._draft_store.pop(session_id, None)
                 self._session_config_store.pop(session_id, None)
+                self._session_access_store.pop(session_id, None)
             return state
 
-    async def get_state(self, session_id: str) -> dict[str, Any]:
+    async def get_state(
+        self,
+        session_id: str,
+        session_access_key: str | None = None,
+    ) -> dict[str, Any]:
         lock = await self._session_lock(session_id)
         async with lock:
+            self._authorize_session(
+                session_id=session_id,
+                session_access_key=session_access_key,
+                create_if_missing=False,
+            )
             config = deepcopy(self._session_config_store.get(session_id))
             return {
                 "session_id": session_id,
@@ -154,22 +183,41 @@ class AgentSessionService:
                 "session_config": _redact_session_config(config) if config else None,
             }
 
-    async def reset(self, session_id: str) -> dict[str, Any]:
+    async def reset(
+        self,
+        session_id: str,
+        session_access_key: str | None = None,
+    ) -> dict[str, Any]:
         lock = await self._session_lock(session_id)
         async with lock:
+            self._authorize_session(
+                session_id=session_id,
+                session_access_key=session_access_key,
+                create_if_missing=False,
+            )
             logger.info("session=%s resetting", session_id)
             removed_draft = self._draft_store.pop(session_id, None)
             removed_state = self._last_state_store.pop(session_id, None)
             removed_config = self._session_config_store.pop(session_id, None)
-        async with self._locks_guard:
-            self._locks.pop(session_id, None)
+            removed_access = self._session_access_store.pop(session_id, None)
         return {
             "session_id": session_id,
             "reset": True,
             "had_draft": removed_draft is not None,
             "had_state": removed_state is not None,
             "had_config": removed_config is not None,
+            "had_access": removed_access is not None,
         }
+
+    def has_active_draft(self, session_id: str) -> bool:
+        return session_id in self._draft_store
+
+    def issue_session_access_key(self, session_id: str) -> str:
+        return self._authorize_session(
+            session_id=session_id,
+            session_access_key=None,
+            create_if_missing=True,
+        )
 
     def _effective_session_config(
         self,
@@ -210,6 +258,45 @@ class AgentSessionService:
             adapter = await build_streamable_http_adapter(mcp_url=mcp_url, session_token=session_token)
         reasoner = _build_reasoner(self.settings)
         return build_agent_graph(adapter=adapter, reasoner=reasoner)
+
+    def _authorize_session(
+        self,
+        *,
+        session_id: str,
+        session_access_key: str | None,
+        create_if_missing: bool,
+    ) -> str | None:
+        stored_key = self._session_access_store.get(session_id)
+        if stored_key is not None:
+            if session_access_key != stored_key:
+                raise SessionAccessError(f"Invalid session access key for session_id '{session_id}'.")
+            return stored_key
+
+        has_material = self._session_has_material(session_id)
+        if not has_material and not create_if_missing:
+            return None
+
+        if has_material and not session_access_key:
+            raise SessionAccessError(f"session_access_key is required for session_id '{session_id}'.")
+
+        issued_key = session_access_key or secrets.token_urlsafe(24)
+        self._session_access_store[session_id] = issued_key
+        return issued_key
+
+    def _session_has_material(self, session_id: str) -> bool:
+        return any(
+            session_id in store
+            for store in (
+                self._draft_store,
+                self._last_state_store,
+                self._session_config_store,
+                self._session_access_store,
+            )
+        )
+
+
+class SessionAccessError(PermissionError):
+    pass
 
 
 def _build_reasoner(settings: Settings) -> AgentReasoner:

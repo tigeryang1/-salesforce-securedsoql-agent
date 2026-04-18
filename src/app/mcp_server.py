@@ -31,6 +31,7 @@ async def run_langgraph_agent(
     sobject_name: str | None = None,
     account_plan_data: dict[str, Any] | None = None,
     approved: bool = False,
+    session_access_key: str | None = None,
     use_demo_adapter: bool = True,
     mcp_url: str | None = None,
     session_token: str | None = None,
@@ -43,6 +44,7 @@ async def run_langgraph_agent(
         sobject_name=sobject_name,
         account_plan_data=merged_plan_data,
         approved=approved,
+        session_access_key=session_access_key,
         use_demo_adapter=use_demo_adapter,
         mcp_url=mcp_url,
         session_token=session_token,
@@ -51,6 +53,7 @@ async def run_langgraph_agent(
         "status": state.get("status", "completed"),
         "intent": state.get("intent", "unknown"),
         "message": state.get("final_response", ""),
+        "session_access_key": state.get("session_access_key"),
         "data": state,
     }
 
@@ -60,6 +63,7 @@ async def approve_account_plan(
     session_id: str,
     user_input: str = "Approve and upload the account plan",
     account_plan_data: dict[str, Any] | None = None,
+    session_access_key: str | None = None,
     use_demo_adapter: bool = True,
     mcp_url: str | None = None,
     session_token: str | None = None,
@@ -68,6 +72,7 @@ async def approve_account_plan(
         user_input=user_input,
         session_id=session_id,
         account_plan_data=account_plan_data,
+        session_access_key=session_access_key,
         use_demo_adapter=use_demo_adapter,
         mcp_url=mcp_url,
         session_token=session_token,
@@ -76,18 +81,19 @@ async def approve_account_plan(
         "status": state.get("status", "completed"),
         "intent": state.get("intent", "unknown"),
         "message": state.get("final_response", ""),
+        "session_access_key": state.get("session_access_key"),
         "data": state,
     }
 
 
 @mcp.tool()
-async def get_agent_state(session_id: str) -> dict[str, Any]:
-    return await service.get_state(session_id)
+async def get_agent_state(session_id: str, session_access_key: str) -> dict[str, Any]:
+    return await service.get_state(session_id, session_access_key=session_access_key)
 
 
 @mcp.tool()
-async def reset_agent(session_id: str) -> dict[str, Any]:
-    return await service.reset(session_id)
+async def reset_agent(session_id: str, session_access_key: str) -> dict[str, Any]:
+    return await service.reset(session_id, session_access_key=session_access_key)
 
 
 # ============================================================================
@@ -97,46 +103,42 @@ async def reset_agent(session_id: str) -> dict[str, Any]:
 
 @mcp.resource("draft://sessions")
 async def list_draft_sessions() -> str:
-    """List all active draft sessions.
+    """Describe how to inspect draft sessions safely.
 
-    Returns a JSON array with session summaries including:
-    - session_id
-    - has_draft (boolean)
-    - has_state (boolean)
-    - last_intent (if available)
-    - last_status (if available)
+    Global draft enumeration is intentionally disabled because the MCP server uses
+    a shared in-process session store. Use the session-specific resource with a
+    session access key instead.
     """
-    sessions_summary = []
-
-    # Get all unique session IDs from all stores
-    all_session_ids = set()
-    all_session_ids.update(service._draft_store.keys())
-    all_session_ids.update(service._last_state_store.keys())
-    all_session_ids.update(service._session_config_store.keys())
-
-    for session_id in sorted(all_session_ids):
-        draft = service._draft_store.get(session_id)
-        state = service._last_state_store.get(session_id)
-
-        summary = {
-            "session_id": session_id,
-            "has_draft": draft is not None,
-            "draft_field_count": len(draft) if draft else 0,
-            "has_state": state is not None,
-            "last_intent": state.get("intent") if state else None,
-            "last_status": state.get("status") if state else None,
-        }
-        sessions_summary.append(summary)
-
-    return json.dumps({
-        "sessions": sessions_summary,
-        "total_count": len(sessions_summary),
-    }, indent=2)
+    return json.dumps(
+        {
+            "enumeration_enabled": False,
+            "reason": "Global session enumeration is disabled for session isolation.",
+            "session_resource_template": "draft://sessions/{session_id}/{session_access_key}",
+            "notes": [
+                "Reuse the session_access_key returned by run_langgraph_agent or approve_account_plan.",
+                "Only sessions with active drafts can be inspected via the draft resource.",
+            ],
+        },
+        indent=2,
+    )
 
 
 @mcp.resource("draft://sessions/{session_id}")
-async def read_draft_session(session_id: str) -> str:
-    """Read the full state of a specific draft session.
+async def read_draft_session_legacy(session_id: str) -> str:
+    """Tell callers to use the session-scoped draft resource."""
+    return json.dumps(
+        {
+            "error": "session_access_key is required to inspect a draft session.",
+            "session_id": session_id,
+            "session_resource_template": "draft://sessions/{session_id}/{session_access_key}",
+        },
+        indent=2,
+    )
+
+
+@mcp.resource("draft://sessions/{session_id}/{session_access_key}")
+async def read_draft_session(session_id: str, session_access_key: str) -> str:
+    """Read the full state of a specific active draft session.
 
     Returns detailed information about the session including:
     - session_id
@@ -144,7 +146,15 @@ async def read_draft_session(session_id: str) -> str:
     - last_state (last execution result)
     - session_config (MCP connection settings, redacted)
     """
-    state = await service.get_state(session_id)
+    state = await service.get_state(session_id, session_access_key=session_access_key)
+    if state["account_plan_data"] is None:
+        return json.dumps(
+            {
+                "error": "No active draft is available for this session.",
+                "session_id": session_id,
+            },
+            indent=2,
+        )
     return json.dumps(state, indent=2, default=str)
 
 
