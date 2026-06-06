@@ -76,7 +76,7 @@ resolved cases often matches the form's `type` vocabulary exactly.
 
 ## 2. System context (C4 — Level 1)
 
-```
+```mermaid
 flowchart LR
     Coordinator[Sales coordinator] -->|submit OM case form| UI[React UI<br/>CaseSubmitForm]
     UI -->|/case /grounding /refresh| API[FastAPI<br/>agent server]
@@ -103,7 +103,7 @@ production secrets in `RETRIEVER_MODE = "fixture"` or `"local"`.
 
 ## 3. Container view (C4 — Level 2)
 
-```
+```mermaid
 flowchart TB
     subgraph Browser
         UI[React + Vite UI<br/>CaseSubmitForm + GroundingBar]
@@ -156,7 +156,7 @@ Three colour-coded loops (unchanged from v1):
 
 ## 4. Component view (C4 — Level 3)
 
-```
+```mermaid
 flowchart LR
     subgraph "API layer"
         Chat[/case handler/]
@@ -220,7 +220,7 @@ flowchart LR
 
 ## 5. Query path — sequence
 
-```
+```mermaid
 sequenceDiagram
     autonumber
     participant UI as React UI (CaseSubmitForm)
@@ -261,7 +261,7 @@ scoring directly toward historically similar resolved cases.
 
 ### 6a. Messaging ingest (unchanged)
 
-```
+```mermaid
 sequenceDiagram
     autonumber
     participant Cron as 15-min tick / POST /refresh
@@ -288,7 +288,7 @@ sequenceDiagram
 
 ### 6b. Case History ingest (new)
 
-```
+```mermaid
 sequenceDiagram
     autonumber
     participant Cron as nightly tick / POST /refresh
@@ -359,7 +359,7 @@ The grounding policy is a *declared target* + *measured actual* + *tolerance*.
 | `faq_gdoc`       | 25%       | **20%**   | Curated answers; reduced proportionally                                           |
 | `case_history`   | —         | **20%**   | Historical resolved cases — empirical precedent for similar symptoms              |
 
-```
+```mermaid
 flowchart LR
     Target[GROUNDING_WEIGHTS<br/>pdf_brd 0.40<br/>slack 0.20<br/>faq_gdoc 0.20<br/>case_history 0.20]
     Chunks[RetrievedChunks from blended_retrieve]
@@ -410,7 +410,7 @@ mix is honoring the declared policy within ±5%.
 
 ## 8. Retriever modes & graceful degradation
 
-```
+```mermaid
 flowchart LR
     Mode{RETRIEVER_MODE}
     Mode -->|fixture| Fix[FixtureRetriever<br/>in-memory corpus<br/>scaled to ~40/20/20/20]
@@ -446,7 +446,7 @@ to keep total prompt context growth modest while accommodating the new source.
 
 ## 9. Data model
 
-```
+```mermaid
 classDiagram
     class RetrievedChunk {
       +chunk_id: str
@@ -528,7 +528,7 @@ class SourceType(str, Enum):
 
 ## 10. Deployment view
 
-```
+```mermaid
 flowchart TB
     subgraph "Application pod"
         Py[Python 3 process<br/>uvicorn app]
@@ -642,7 +642,7 @@ works on day one. It is structured as three overlapping phases, each with
 concrete implementation steps, measurable success criteria, and explicit
 tie-ins to the existing architecture.
 
-```
+```mermaid
 flowchart LR
     P1[Phase 1<br/>Measure & baseline<br/>Days 1–30]
     P2[Phase 2<br/>Retrieval & generation<br/>improvements<br/>Days 30–90]
@@ -887,7 +887,7 @@ improves by ≥ 0.3 points vs. baseline.
 > It requires the feedback infrastructure from §15.2.5 to be live and
 > accumulating data.
 
-```
+```mermaid
 flowchart LR
     A[Coordinator submits case] --> B[Agent generates answer]
     B --> C[Coordinator edits / approves]
