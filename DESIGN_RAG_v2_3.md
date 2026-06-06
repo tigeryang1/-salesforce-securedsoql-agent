@@ -1,28 +1,5 @@
 # OM Response Generation Agent — Design Document
 
-Status: Draft v5
-Owner: confidential company
-Last updated: 2026-06-06
-> Companion document to `README.md`. The README covers *how to run and wire* the agent;
-> this doc covers *why it is shaped this way*.
->
-> **v2 changes:** Added **Case History** as a fourth knowledge source (§2–§13).
-> Grounding policy updated from three sources to four. All affected diagrams,
-> sequences, data models, failure modes, and extension points updated accordingly.
->
-> **v3 changes:** Added **§15 — AI Response Quality Improvement Strategy**: a
-> phased, measurable roadmap covering retrieval, generation, feedback, evaluation,
-> and continuous learning — fully wired to the existing architecture.
->
-> **v4 changes:** Redesign pass driven by **eight identified production failure
-> modes** (knowledge quality, retrieval precision, feedback cold start, human
-> adoption, grounding rigidity, PII/compliance, evaluation drift, org process).
-> New components: KnowledgeValidator, ConfidenceScorer, KnowledgeHealthMonitor,
-> AdaptiveGroundingPolicy. Updated: §1 risk register, §3 container diagram,
-> §4 component diagram, §6 AI-readiness pre-processing, §7 adaptive grounding,
-> §9 ConfidenceSignal model, §11 failure modes, §12 compliance, §13 extensions,
-> §14 open questions. New: **§16 — Production Challenge Mitigations**.
-
 ---
 
 ## 1. Problem statement
