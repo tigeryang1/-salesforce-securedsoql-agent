@@ -722,6 +722,7 @@ The CRM connector follows the same proxy pattern as the messaging connector.
 | **Filter case history by case type**  | **Add `CASE_HISTORY_TYPE_FILTER` env var (default `all`); pass as query param to CRM connector. Allows scoping the store to e.g. `Launch blocker` only for a focused deployment.**                             |
 | **Surface resolution time in the UI** | **`CaseHistoryChunk.resolution_time_hrs` is already in the data model; expose it in the citation card component alongside the case deep-link.**                                                                 |
 | **Re-rank case history by recency**   | **Add a `recency_boost` multiplier to `ChunkStore("case_history").search()` that scales BM25 scores by `recency_weight(closed_at)`. This lets the retriever prefer recent resolutions without a full embedding pipeline.** |
+| **Enable Graph-RAG for case history** | **Add `GraphAugmentedRetriever` behind `ENABLE_GRAPH_RAG`; build graph nodes from `Case`, `Symptom`, `RootCause`, `ResolutionStep`, and `PolicySection`; merge graph evidence back into `RetrievedChunk` before the existing re-rank stage (see §15.2.4b).** |
 | **Per-source health dashboard**       | Expose `GET /health/knowledge` endpoint driven by `KnowledgeHealthMonitor`; surface in a new UI panel alongside the grounding bar. Shows: last ingest timestamp, chunk count, avg quality score, staleness flag per source. |
 | **Confidence-gated UI**               | When `ConfidenceSignal.low_confidence = true`, UI renders the answer in an amber state with a "Low confidence — please verify" banner instead of the standard green. Coordinator must click "Acknowledged" before the answer can be sent. |
 | **Multi-model judge rotation**        | Replace single LLM-as-judge call with a rotating ensemble of two models (e.g. GPT-4o + Claude Sonnet). Flag answers where judges disagree by > 1.0 on any dimension for human spot-check. Reduces single-model blind-spot risk. |
@@ -956,6 +957,135 @@ that bi-encoder retrieval misses.
 **Success criterion:** LLM-as-judge factual accuracy score improves by ≥ 0.2
 points (composite) on the golden set vs. pre-reranking.
 
+#### 15.2.4b Graph-RAG augmentation for case history (optional, recommended if allowed)
+
+**Dependency:** 15.2.1 hybrid retrieval live; case history ingest stable; PII
+scope controls from §12 and §16.6 enforced.
+
+**Problem:** Case-management escalations are often not solved by text similarity
+alone. The coordinator is implicitly asking for a **resolution path**:
+"what symptom pattern is this, what root cause usually explains it, what fix
+steps worked before, and which policy section constrains the answer?" Plain
+BM25/dense retrieval is good at finding relevant text, but weak at following
+these multi-hop operational relationships consistently.
+
+**Recommendation:** Use **hybrid RAG + Graph-RAG augmentation**, not pure
+Graph-RAG. Keep BRD PDFs and FAQ docs in document retrieval; use the graph
+primarily for **case history and operational entities**. The graph is an
+augmentation layer above the existing retriever, not a replacement for it.
+
+**Architecture boundary:**
+
+- **Document retrieval stays primary** for `pdf_brd`, `faq_gdoc`, and Slack
+  thread text.
+- **Graph retrieval augments** `case_history` by linking symptom, root cause,
+  resolution step, policy section, product area, market, and owning team.
+- **Merged evidence is still re-ranked once** before synthesis, so the generator
+  consumes one final ranked evidence set with normal grounding telemetry.
+
+**Initial graph schema (minimum useful graph):**
+
+| Node type | Purpose |
+|---|---|
+| `Case` | A resolved escalation record from CRM / OM |
+| `Symptom` | Normalized failure expression, e.g. `delivery_blocked`, `billing_mismatch` |
+| `RootCause` | Canonical causal label, e.g. `creative_policy_hold` |
+| `ResolutionStep` | Actionable coordinator step or remediation |
+| `PolicySection` | Canonical BRD / FAQ section that governs the resolution |
+| `Team` | Owning escalation or support team |
+| `ProductArea` | Product or feature surface involved |
+| `Market` | Geographic / commercial market when policy differs |
+
+| Edge | Meaning |
+|---|---|
+| `Case -> has_symptom -> Symptom` | Case exhibits symptom |
+| `Case -> has_root_cause -> RootCause` | Case resolved to root cause |
+| `Case -> resolved_by -> ResolutionStep` | Case used step |
+| `ResolutionStep -> constrained_by -> PolicySection` | Step must align with policy |
+| `Case -> governed_by -> PolicySection` | Case outcome tied to policy |
+| `Case -> owned_by -> Team` | Operational owner |
+| `Case -> in_product_area -> ProductArea` | Product surface |
+| `Case -> in_market -> Market` | Market context |
+| `Case -> similar_to -> Case` | Offline similarity edge between resolved cases |
+
+**Query-time flow (Graph-RAG path):**
+
+1. Run the existing entity extraction on the case description.
+2. Normalize extracted entities into graph keys:
+   `symptom`, `case_type`, `product_area`, `market`, and known policy terms.
+3. Run the standard document retriever (`BM25 + dense + query expansion`).
+4. In parallel, seed graph traversal from the strongest extracted entities:
+   `Symptom`, `ProductArea`, `Market`, and optionally a matched `Case`.
+5. Expand 1-2 hops to collect candidate `RootCause`, `ResolutionStep`,
+   `PolicySection`, and similar `Case` nodes.
+6. Convert the traversed graph neighborhood into `RetrievedChunk`-compatible
+   evidence cards (one card per case path or policy-linked resolution path).
+7. Merge graph evidence with document evidence using RRF or weighted fusion.
+8. Run the existing cross-encoder reranker on the merged set.
+9. Synthesize from the final ranked evidence set with the normal citation path.
+
+```mermaid
+flowchart LR
+    Q[Case form + description] --> E[Entity extraction]
+    E --> D[Document retrieval<br/>BM25 + dense + query expansion]
+    E --> G[Graph seed selection<br/>symptom / product / market]
+    G --> T[1-2 hop traversal<br/>case -> cause -> fix -> policy]
+    T --> C[Graph evidence cards]
+    D --> M[Merged candidate set]
+    C --> M
+    M --> R[Cross-encoder reranker]
+    R --> S[Synthesis with citations]
+```
+
+**Why this shape is preferred:**
+
+- It preserves the strengths of lexical/semantic retrieval for policy text.
+- It adds graph reasoning where the use case actually benefits: similar cases,
+  root causes, and fix-path linkage.
+- It avoids the common failure mode of forcing all knowledge into a graph,
+  which is expensive, brittle, and unnecessary for long-form policy text.
+
+**Implementation note tied to current architecture:**
+
+- Add a new optional retriever implementation, e.g. `GraphAugmentedRetriever`,
+  behind a feature flag `ENABLE_GRAPH_RAG`.
+- Keep the external contract unchanged:
+  `Retriever.blended_retrieve(...) -> list[RetrievedChunk]`.
+- Graph results must be converted into the same `RetrievedChunk` shape with
+  explicit provenance metadata such as:
+  `source_type = "case_history_graph"`, `origin_case_id`, `path_nodes`,
+  and `policy_section_ids`.
+- `GroundingTelemetry` can either:
+  1. treat `case_history_graph` as part of `case_history`, or
+  2. expose it as a sub-source in debug telemetry while rolling out.
+  Option (2) is preferred during evaluation; option (1) is simpler for UI.
+
+**Rollout boundaries (important):**
+
+- Do **not** replace BRD / FAQ retrieval with graph traversal.
+- Do **not** graph every PDF chunk; only link canonical `PolicySection` nodes.
+- Do **not** allow graph-only answers; document retrieval remains mandatory.
+- Do **not** traverse more than 2 hops in v1; longer traversals increase noise
+  faster than they improve answer quality in support workflows.
+
+**Success criteria:**
+
+| Metric | Expected delta vs. hybrid retrieval only |
+|---|---|
+| Recall@K on edge-case golden set | +5 to +10 pp |
+| MRR on rare case types | +0.05 |
+| LLM-as-judge factual accuracy | +0.1 to +0.2 |
+| Coordinator edit rate on precedent-heavy cases | -5 pp |
+
+**Recommended rollout order:**
+
+1. Start with `case_history` only; build graph nodes from resolved cases and
+   canonicalized policy sections.
+2. Enable Graph-RAG only for `Launch blocker` and `Order line` case types,
+   where precedent reuse is most valuable.
+3. Compare Graph-RAG vs. hybrid-only on a dedicated edge-case golden subset.
+4. Expand only if the graph path beats hybrid-only on both recall and edit rate.
+
 #### 15.2.5 Coordinator edit tracking (feedback signal)
 
 **Dependency:** Phase 1 baseline coordinator edit rate measured.
@@ -1116,6 +1246,7 @@ examples.
 | 2 | Hybrid retrieval (BM25 + dense) | Eng | Recall@K ≥ 0.85 | Day 45 |
 | 2 | Query expansion (parallel) | Eng | MRR ≥ 0.70 | Day 45 |
 | 2 | Cross-encoder re-ranking | Eng | Factual accuracy +0.2 pts | Day 60 |
+| 2 | Graph-RAG augmentation for case history (optional) | Eng | Edge-case Recall@K +5 pp | Day 75 |
 | 2 | Coordinator edit tracking | Eng + PM | Edit rate baseline captured | Day 50 |
 | 2 | Synthesis prompt hardening | Eng | Citation fidelity +0.3 pts | Day 40 |
 | 3 | Chunk penalty store | Eng | Retrieval quality stable or improving | Day 100 |
